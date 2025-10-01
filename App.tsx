@@ -1,140 +1,77 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Video, FilterState } from './lib/types';
-import { useFilters } from './hooks/useFilters';
-import { useDebounce } from './hooks/useDebounce';
-import { fetchTrends } from './lib/api';
-import { dequal } from 'dequal';
-
+// FIX: Replaced placeholder content with the main application component.
+import React, { useRef, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
 import VideoGrid from './components/VideoGrid';
+import { useFilters, initialFilterState } from './hooks/useFilters';
+import { useTrends } from './hooks/useTrends';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
+import { VideoCardSkeleton } from './components/VideoCard';
 
 const App: React.FC = () => {
-  const [videos, setVideos] = useState<Video[]>([]);
-  const { filters, updateFilter, clearFilters, applyPreset } = useFilters();
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoading, setIsLoading] = useState(true); // Start loading initially
-  const [error, setError] = useState<string | null>(null);
+  const { filters, onFilterChange, onClearFilters, onApplyPreset } = useFilters(initialFilterState);
+  const { videos, isLoading, isLoadingMore, error, hasMore, fetchMore } = useTrends(filters);
 
   const observer = useRef<IntersectionObserver | null>(null);
-  const prevFiltersRef = useRef<FilterState | null>(null);
-  
-  const debouncedFilters = useDebounce(filters, 400);
-
-  // Effect for handling NEW searches when filters change
-  useEffect(() => {
-    // Only trigger if the debounced filters have actually changed
-    if (prevFiltersRef.current && dequal(debouncedFilters, prevFiltersRef.current)) {
-      return;
-    }
-    prevFiltersRef.current = debouncedFilters;
-    
-    // Reset state for a new search
-    setVideos([]);
-    setPage(1);
-    setHasMore(true);
-
-    let active = true;
-    const loadFirstPage = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const apiFilters = { ...debouncedFilters, page: 1, limit: 20 };
-        const response = await fetchTrends(apiFilters);
-        if (active) {
-          setVideos(response.data);
-          setHasMore(response.meta.hasMore);
-          setPage(2); // Set page for the *next* load
-        }
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : 'An unknown error occurred.');
-        }
-      } finally {
-        if (active) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadFirstPage();
-
-    // Cleanup function to prevent setting state on unmounted component
-    return () => { active = false; };
-  }, [debouncedFilters]);
-
-  // Callback for loading MORE results on scroll
-  const loadMore = useCallback(async () => {
-    if (isLoading || !hasMore) return;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const apiFilters = { ...debouncedFilters, page, limit: 20 };
-      const response = await fetchTrends(apiFilters);
-      setVideos(prev => [...prev, ...response.data]);
-      setHasMore(response.meta.hasMore);
-      setPage(prev => prev + 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, hasMore, page, debouncedFilters]);
-
-  // Callback ref for the IntersectionObserver
-  const lastVideoElementRef = useCallback((gridNode: HTMLDivElement | null) => {
-    if (isLoading) return;
+  const lastVideoElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (isLoading || isLoadingMore) return;
     if (observer.current) observer.current.disconnect();
-
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting && hasMore) {
-        loadMore();
-      }
-    }, { rootMargin: '400px' });
     
-    // Observe the last element child of the grid container
-    if (gridNode?.lastElementChild) {
-      observer.current.observe(gridNode.lastElementChild);
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        fetchMore();
+      }
+    });
+
+    if (node) observer.current.observe(node);
+  }, [isLoading, isLoadingMore, hasMore, fetchMore]);
+
+  // For accessibility and user feedback when filters change
+  const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isLoading && gridRef.current) {
+        // A slight delay to ensure content is painted before focus.
+        setTimeout(() => gridRef.current?.focus(), 100);
     }
-  }, [isLoading, hasMore, loadMore]);
-  
+  }, [isLoading, filters]);
+
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white font-sans">
+    <div className="bg-slate-900 text-white min-h-screen">
       <Header />
-      <main className="container mx-auto p-4">
+      <main className="container mx-auto px-4 py-6">
         <FilterBar 
-          filters={filters} 
-          onFilterChange={updateFilter}
-          onClearFilters={clearFilters}
-          onApplyPreset={applyPreset}
+          filters={filters}
+          onFilterChange={onFilterChange}
+          onClearFilters={onClearFilters}
+          onApplyPreset={onApplyPreset}
         />
-        
-        {error && <div className="my-4"><ErrorMessage message={error} /></div>}
 
-        <VideoGrid videos={videos} ref={lastVideoElementRef} />
-        
-        {isLoading && (
-            <div className="h-20 flex items-center justify-center">
-              <LoadingSpinner />
+        <div ref={gridRef} tabIndex={-1} className="outline-none" aria-live="polite" aria-busy={isLoading || isLoadingMore}>
+          {isLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                {Array.from({ length: 10 }).map((_, i) => <VideoCardSkeleton key={i} />)}
             </div>
-        )}
+          )}
 
-        {!isLoading && !hasMore && videos.length > 0 && (
-          <div className="text-center py-8 text-slate-500">
-            <p>You've reached the end of the trends.</p>
-          </div>
-        )}
+          {error && <ErrorMessage message={error.userMessage || 'Could not fetch trends. Please try again later.'} />}
 
-        {!isLoading && videos.length === 0 && !error && (
-            <div className="text-center py-10">
-                <h2 className="text-2xl font-bold text-slate-400">No Trends Found</h2>
-                <p className="text-slate-500 mt-2">Try adjusting your filters to find what you're looking for.</p>
+          {!isLoading && !error && videos.length === 0 && (
+            <div className="text-center py-20">
+              <h2 className="text-2xl font-bold text-slate-400">No videos found.</h2>
+              <p className="text-slate-500 mt-2">Try adjusting your filters.</p>
             </div>
-        )}
+          )}
+
+          <VideoGrid videos={videos} lastItemRef={lastVideoElementRef} />
+          
+          {isLoadingMore && (
+             <div className="flex justify-center items-center py-10">
+                <LoadingSpinner />
+             </div>
+          )}
+        </div>
       </main>
     </div>
   );
