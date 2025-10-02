@@ -5,6 +5,7 @@ import { useFilters } from './hooks/useFilters';
 import { useTrends } from './hooks/useTrends';
 import ErrorBoundary from './components/errors/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
+import YouTubeTest from './components/YouTubeTest';
 
 // Dynamically import the VideoGrid component for code splitting.
 // This means its code won't be loaded until it's needed.
@@ -18,6 +19,11 @@ const App: React.FC = () => {
     <div className="bg-slate-900 text-white min-h-screen font-sans">
       <Header />
       <main className="container mx-auto px-4 py-6">
+        {/* YouTube API Test Component - Remove this after testing */}
+        <div className="mb-6">
+          <YouTubeTest />
+        </div>
+        
         <FilterBar 
           filters={filters}
           appliedFilters={appliedFilters}

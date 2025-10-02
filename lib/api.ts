@@ -3,11 +3,64 @@ import { ApiFilterParams, ApiResponse, Video, ApiError, StatsResponse, PresetsRe
 import { filterPresets, initialFilterState } from '../hooks/useFilters';
 import { calculateVelocity } from '../utils/formatters';
 import { getFromApiCache, setInApiCache, generateCacheKey } from '../utils/performance';
+import config, { validateConfig } from './config';
+import YouTubeService from '../services/youtube.service';
 
 const BASE_URL = '/api/v1/';
 const TIMEOUT = 10000; // 10 seconds
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
+
+// Initialize YouTube service if API key is available
+let youtubeService: YouTubeService | null = null;
+if (config.features.useRealYouTubeData && config.youtubeApiKey && config.youtubeApiKey.trim()) {
+  try {
+    youtubeService = new YouTubeService(config.youtubeApiKey);
+    console.log('YouTube service initialized with API key');
+  } catch (error) {
+    console.log('Failed to initialize YouTube service:', error);
+    youtubeService = null;
+  }
+} else {
+  console.log('YouTube service not initialized - no valid API key provided');
+}
+
+// Helper function to convert upload date filter to YouTube API format
+const getPublishedAfterDate = (uploadDate: string, customDate?: { start: string | null; end: string | null }): string | undefined => {
+  if (uploadDate === 'custom' && customDate?.start) {
+    return customDate.start;
+  }
+  
+  const now = new Date();
+  switch (uploadDate) {
+    case 'today':
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+      return today.toISOString();
+    case '24h':
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    case '30d':
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    case '3m':
+      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    case '1y':
+      return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    default:
+      return undefined;
+  }
+};
+
+// Helper function to get YouTube sort order
+const getYouTubeSortOrder = (sortBy: string): 'relevance' | 'date' | 'rating' | 'viewCount' | 'title' => {
+  switch (sortBy) {
+    case 'date': return 'date';
+    case 'views': return 'viewCount';
+    case 'trending': 
+    default: return 'relevance';
+  }
+};
 
 // --- AXIOS INSTANCE ---
 // A centralized, configured axios instance for all API calls.
@@ -187,7 +240,7 @@ const _mockBackend = (filters: ApiFilterParams): ApiResponse => {
  * @param filters The filter and pagination parameters.
  * @returns A promise that resolves to an ApiResponse with a list of videos.
  */
-export const fetchTrends = (filters: Partial<ApiFilterParams>): Promise<ApiResponse> => {
+export const fetchTrends = async (filters: Partial<ApiFilterParams>): Promise<ApiResponse> => {
   const fullFilters: ApiFilterParams = { ...initialFilterState, page: 1, limit: 20, ...filters };
 
   // --- Caching Layer ---
@@ -200,7 +253,130 @@ export const fetchTrends = (filters: Partial<ApiFilterParams>): Promise<ApiRespo
     return Promise.resolve(JSON.parse(JSON.stringify(cachedResponse)));
   }
 
-  // --- Mock Fetch Layer (Simulates Network) ---
+  // --- Real YouTube API or Mock Backend ---
+  if (youtubeService && fullFilters.platform !== 'tiktok') {
+    try {
+      console.log('Fetching from YouTube API (cache miss):', fullFilters);
+      
+      let videos: Video[] = [];
+      
+      if (fullFilters.keywords && fullFilters.keywords.trim()) {
+        // Search for videos with keywords
+        const publishedAfter = getPublishedAfterDate(fullFilters.uploadDate, fullFilters.customDate);
+        const order = getYouTubeSortOrder(fullFilters.sortBy);
+        
+        videos = await youtubeService.searchVideos(
+          fullFilters.keywords,
+          fullFilters.limit * 2, // Get more results to filter
+          order,
+          publishedAfter
+        );
+      } else {
+        // Get trending videos
+        videos = await youtubeService.getTrendingVideos(
+          fullFilters.limit * 2, // Get more results to filter
+          config.youtube.defaultRegion,
+          (fullFilters as any).category || config.youtube.defaultCategoryId
+        );
+      }
+      
+      // Apply client-side filtering for features not supported by YouTube API
+      let filteredVideos = videos;
+      
+      // Filter by platform (should only be YouTube at this point)
+      if (fullFilters.platform === 'youtube') {
+        filteredVideos = filteredVideos.filter(v => v.platform === 'youtube');
+      }
+      
+      // Filter by view count range
+      if (fullFilters.viewCount.min > 0 || fullFilters.viewCount.max < Infinity) {
+        filteredVideos = filteredVideos.filter(v => 
+          v.viewCount >= fullFilters.viewCount.min && 
+          v.viewCount <= fullFilters.viewCount.max
+        );
+      }
+      
+      // Filter by subscriber count range
+      if (fullFilters.subscriberCount.min > 0 || fullFilters.subscriberCount.max < Infinity) {
+        filteredVideos = filteredVideos.filter(v => 
+          v.subscriberCount >= fullFilters.subscriberCount.min && 
+          v.subscriberCount <= fullFilters.subscriberCount.max
+        );
+      }
+      
+      // Filter by channel age
+      if (fullFilters.channelAge !== 'all') {
+        const maxAge = typeof fullFilters.channelAge === 'number' ? fullFilters.channelAge : fullFilters.channelAge;
+        filteredVideos = filteredVideos.filter(v => 
+          v.channelAge && v.channelAge <= maxAge
+        );
+      }
+      
+      // Filter by duration
+      if (fullFilters.duration.length > 0) {
+        filteredVideos = filteredVideos.filter(video => {
+          return fullFilters.duration.some(durationBracket => {
+            switch (durationBracket) {
+              case 60: // < 1 min
+                return video.duration < 60;
+              case 300: // 1-5 min
+                return video.duration >= 60 && video.duration < 300;
+              case 1200: // 5-20 min
+                return video.duration >= 300 && video.duration < 1200;
+              case Infinity: // > 20 min
+                return video.duration >= 1200;
+              default:
+                return false;
+            }
+          });
+        });
+      }
+      
+      // Apply sorting
+      filteredVideos.sort((a, b) => {
+        switch (fullFilters.sortBy) {
+          case 'date': 
+            return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime();
+          case 'views': 
+            return b.viewCount - a.viewCount;
+          case 'trending': 
+          default: 
+            return calculateVelocity(b.viewCount, b.uploadDate) - calculateVelocity(a.viewCount, a.uploadDate);
+        }
+      });
+      
+      // Apply pagination
+      const total = filteredVideos.length;
+      const startIndex = (fullFilters.page - 1) * fullFilters.limit;
+      const endIndex = fullFilters.page * fullFilters.limit;
+      const paginatedData = filteredVideos.slice(startIndex, endIndex);
+      const hasMore = endIndex < total;
+      
+      const response: ApiResponse = {
+        success: true,
+        data: paginatedData,
+        meta: { 
+          total, 
+          page: fullFilters.page, 
+          limit: fullFilters.limit, 
+          hasMore, 
+          fetchedAt: new Date().toISOString(), 
+          cacheHit: false 
+        }
+      };
+      
+      // Cache the response
+      setInApiCache(cacheKey, response);
+      return response;
+      
+    } catch (error) {
+      console.error('YouTube API error, falling back to mock data:', error);
+      // Fall back to mock data if YouTube API fails
+      // Continue to mock backend logic below
+    }
+  }
+
+  // --- Mock Fetch Layer (Fallback) ---
   console.log('Fetching from mock backend (cache miss):', fullFilters);
   return new Promise((resolve) => {
     // Simulate network latency

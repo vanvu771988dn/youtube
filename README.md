@@ -12,9 +12,41 @@ View your app in AI Studio: https://ai.studio/apps/drive/1u4TLuloGK21-GjX9Dmqxu4
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+
+2. Set up your API keys:
+   - Create a `.env.local` file in the project root
+   - Add your YouTube Data API v3 key:
+     ```
+     YOUTUBE_API_KEY=your_youtube_api_key_here
+     ```
+   - (Optional) Add your Gemini API key for AI features:
+     ```
+     GEMINI_API_KEY=your_gemini_api_key_here
+     ```
+   
+   **Note:** Without a YouTube API key, the app will use mock data for demonstration purposes.
+
+3. Get a YouTube Data API v3 key:
+   - Go to [Google Cloud Console](https://console.developers.google.com/)
+   - Create a new project or select an existing one
+   - Enable the YouTube Data API v3
+   - Create credentials (API Key)
+   - Copy the API key to your `.env.local` file
+
+4. Run the app:
+   ```bash
+   npm run dev
+   ```
+
+## Features
+
+- **Real YouTube Data**: Fetches trending videos and search results from YouTube Data API v3
+- **Advanced Filtering**: Filter by platform, upload date, view count, subscriber count, duration, and more
+- **Search Functionality**: Search for videos by keywords
+- **Responsive Design**: Works on desktop and mobile devices
+- **Caching**: Intelligent caching for better performance
+- **Fallback Support**: Falls back to mock data if YouTube API is unavailable

@@ -6,6 +6,7 @@ export interface Video {
   thumbnail: string;
   url: string;
   creatorName: string;
+  creatorAvatar: string; // Added field used in VideoCard
   subscriberCount: number;
   viewCount: number;
   likeCount: number;
@@ -41,6 +42,7 @@ export interface FilterState {
   duration: number[]; // array of max seconds for each bracket
   trending24h: boolean;
   sortBy: 'trending' | 'views' | 'date';
+  category?: string; // YouTube category ID
 }
 
 // Parameters sent to the API, including pagination.
