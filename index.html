@@ -3,46 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TrendHub - Social Media Trends</title>
+    <title>TrendHub</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'brand-youtube': '#FF0000',
-              'brand-tiktok': '#00F2EA',
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.5s ease-in-out',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: 0 },
-                '100%': { opacity: 1 },
-              },
-            },
-          },
-        },
+    <style>
+      /* A simple body style to match the app's dark theme */
+      body {
+        background-color: #0f172a; /* bg-slate-900 */
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://aistudiocdn.com/react@^18.2.0",
+          "react-dom/": "https://aistudiocdn.com/react-dom@^18.2.0/",
+          "react/": "https://aistudiocdn.com/react@^18.2.0/",
+          "dequal": "https://aistudiocdn.com/dequal@^2.0.3",
+          "axios": "https://aistudiocdn.com/axios@^1.12.2"
+        }
       }
     </script>
-  <script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
-    "react/": "https://aistudiocdn.com/react@^18.2.0/",
-    "react": "https://aistudiocdn.com/react@^18.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^18.2.0/",
-    "axios": "https://cdn.skypack.dev/axios",
-    "express": "https://aistudiocdn.com/express@^5.1.0",
-    "joi": "https://aistudiocdn.com/joi@^18.0.1",
-    "node-cache": "https://aistudiocdn.com/node-cache@^5.1.2",
-    "dequal": "https://aistudiocdn.com/dequal@^2.0.3"
-  }
-}
-</script>
+  <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-slate-900 text-white">
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

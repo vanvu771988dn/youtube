@@ -9,14 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.21.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "axios": "latest",
-    "express": "^5.1.0",
-    "joi": "^18.0.1",
-    "node-cache": "^5.1.2",
-    "dequal": "^2.0.3"
+    "dequal": "^2.0.3",
+    "axios": "^1.12.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

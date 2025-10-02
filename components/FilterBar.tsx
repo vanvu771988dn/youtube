@@ -2,17 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { FilterState } from '../lib/types';
 import SearchBar from './SearchBar';
 import { DURATION_OPTIONS, MAX_VIEWS, MAX_SUBSCRIBERS, initialFilterState, filterPresets } from '../hooks/useFilters';
-import { formatCount } from '../lib/utils';
+import { formatCount } from '../utils/formatters';
 import { dequal } from 'dequal';
 
 // --- PROPS INTERFACES ---
 
 interface FilterBarProps {
-  filters: FilterState;
+  filters: FilterState; // The draft filters for UI controls
+  appliedFilters: FilterState; // The applied filters for comparison
   onFilterChange: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   onClearFilters: () => void;
   onApplyPreset: (preset: keyof typeof filterPresets) => void;
+  applyFilters: () => void; // The new function to apply filters
 }
+
 
 // --- REUSABLE SUB-COMPONENTS (defined at the top level for stability) ---
 
@@ -71,7 +74,7 @@ const FilterControls: React.FC<{
 }> = ({ filters, onFilterChange, commonSelectClasses }) => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
         {/* Basic Filters */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-4">
           <label className="block text-sm font-medium mb-1">Search</label>
           <SearchBar keywords={filters.keywords} onKeywordsChange={(value) => onFilterChange('keywords', value)} />
         </div>
@@ -82,11 +85,28 @@ const FilterControls: React.FC<{
           </select>
         </div>
         <div>
+          <label className="block text-sm font-medium mb-1">Upload Date</label>
+          <select value={filters.uploadDate} onChange={(e) => onFilterChange('uploadDate', e.target.value as FilterState['uploadDate'])} className={commonSelectClasses}>
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="24h">Last 24 Hours</option>
+            <option value="7d">Last Week</option>
+            <option value="30d">Last Month</option>
+            <option value="3m">Last 3 Months</option>
+            <option value="6m">Last 6 Months</option>
+            <option value="1y">Last Year</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-sm font-medium mb-1">Sort By</label>
           <select value={filters.sortBy} onChange={(e) => onFilterChange('sortBy', e.target.value as FilterState['sortBy'])} className={commonSelectClasses}>
             <option value="trending">Trending</option><option value="views">Most Views</option><option value="date">Newest</option>
           </select>
         </div>
+        <div className="pt-4 self-end">
+            <ToggleSwitch checked={filters.trending24h} onChange={val => onFilterChange('trending24h', val)} label="Trending in last 24h"/>
+        </div>
+        
         {/* Advanced Filters */}
         <div className="md:col-span-2">
             <RangeSlider label="View Count" min={0} max={MAX_VIEWS} step={100000} current={filters.viewCount} onChange={(val) => onFilterChange('viewCount', val)} />
@@ -94,7 +114,7 @@ const FilterControls: React.FC<{
         <div className="md:col-span-2">
             <RangeSlider label="Subscriber Count" min={0} max={MAX_SUBSCRIBERS} step={50000} current={filters.subscriberCount} onChange={(val) => onFilterChange('subscriberCount', val)} />
         </div>
-        <div>
+        <div className="lg:col-span-4">
           <label className="block text-sm font-medium mb-1">Video Duration</label>
           <div className="flex flex-wrap gap-2 mt-2">
             {DURATION_OPTIONS.map(opt => (
@@ -107,26 +127,29 @@ const FilterControls: React.FC<{
             ))}
           </div>
         </div>
-        <div className="pt-4"><ToggleSwitch checked={filters.trending24h} onChange={val => onFilterChange('trending24h', val)} label="Trending in last 24h"/></div>
     </div>
 );
 
 
 // --- MAIN FILTER BAR COMPONENT ---
 
-const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onClearFilters, onApplyPreset }) => {
+const FilterBar: React.FC<FilterBarProps> = ({ filters, appliedFilters, onFilterChange, onClearFilters, onApplyPreset, applyFilters }) => {
   const commonSelectClasses = "bg-slate-700 border border-slate-600 rounded-md p-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition w-full text-sm";
   const [isMobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   const activeFilterCount = useMemo(() => {
-      return Object.keys(filters).reduce((count, key) => {
+      // Count is based on the currently APPLIED filters
+      return Object.keys(appliedFilters).reduce((count, key) => {
           const filterKey = key as keyof FilterState;
-          if (!dequal(filters[filterKey], initialFilterState[filterKey])) {
+          if (!dequal(appliedFilters[filterKey], initialFilterState[filterKey])) {
               return count + 1;
           }
           return count;
       }, 0);
-  }, [filters]);
+  }, [appliedFilters]);
+
+  // Check if there are changes waiting to be applied
+  const hasPendingChanges = useMemo(() => !dequal(filters, appliedFilters), [filters, appliedFilters]);
 
   return (
     <>
@@ -135,6 +158,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onClearF
              <button type="button" onClick={() => setMobileSheetOpen(true)} className="w-full bg-slate-700 text-white font-bold py-2 px-4 rounded-lg flex justify-center items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.293.707l-2 2A1 1 0 019 17v-6.586L4.293 6.707A1 1 0 014 6V3z" clipRule="evenodd" /></svg>
                 Filters {activeFilterCount > 0 && <span className="bg-cyan-500 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{activeFilterCount}</span>}
+                {hasPendingChanges && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400"></span>}
             </button>
         </div>
         {isMobileSheetOpen && (
@@ -150,8 +174,8 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onClearF
                         commonSelectClasses={commonSelectClasses}
                     />
                      <div className="p-4 border-t border-slate-700 bg-slate-800 flex gap-2">
-                        <button type="button" onClick={() => { onClearFilters(); setMobileSheetOpen(false); }} className="flex-1 bg-slate-600 text-white font-bold py-2 px-4 rounded-lg">Clear All</button>
-                        <button type="button" onClick={() => setMobileSheetOpen(false)} className="flex-1 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg">Show Results</button>
+                        <button type="button" onClick={onClearFilters} disabled={dequal(filters, initialFilterState)} className="flex-1 bg-slate-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-slate-500 disabled:cursor-not-allowed">Reset</button>
+                        <button type="button" onClick={() => { applyFilters(); setMobileSheetOpen(false); }} disabled={!hasPendingChanges} className="flex-1 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-slate-500 disabled:cursor-not-allowed transition">Apply</button>
                     </div>
                 </div>
             </div>
@@ -164,7 +188,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onClearF
                 onFilterChange={onFilterChange}
                 commonSelectClasses={commonSelectClasses}
             />
-            <div className="px-4 pt-2 border-t border-slate-700/50 flex justify-between items-center">
+            <div className="px-4 pt-4 mt-2 border-t border-slate-700/50 flex flex-wrap gap-4 justify-between items-center">
                  <div className="flex gap-2 items-center">
                     <label htmlFor="presets" className="text-sm font-medium">Presets:</label>
                     <select 
@@ -184,7 +208,24 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onClearF
                         <option value="deep-dives">Deep Dives</option>
                     </select>
                 </div>
-                {activeFilterCount > 0 && <button type="button" onClick={onClearFilters} className="text-sm text-cyan-400 hover:text-cyan-300">Clear All Filters ({activeFilterCount})</button>}
+                <div className="flex items-center gap-4">
+                    <button 
+                        type="button" 
+                        onClick={onClearFilters} 
+                        disabled={dequal(filters, initialFilterState)}
+                        className="text-sm text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition"
+                    >
+                        Reset Filters
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={applyFilters} 
+                        disabled={!hasPendingChanges}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-6 rounded-lg disabled:bg-slate-500 disabled:cursor-not-allowed transition"
+                    >
+                        Apply Filters
+                    </button>
+                </div>
             </div>
         </div>
 

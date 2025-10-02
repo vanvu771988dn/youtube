@@ -1,6 +1,8 @@
 import axios, { AxiosError } from 'axios';
 import { ApiFilterParams, ApiResponse, Video, ApiError, StatsResponse, PresetsResponse, FilterState } from './types';
 import { filterPresets, initialFilterState } from '../hooks/useFilters';
+import { calculateVelocity } from '../utils/formatters';
+import { getFromApiCache, setInApiCache, generateCacheKey } from '../utils/performance';
 
 const BASE_URL = '/api/v1/';
 const TIMEOUT = 10000; // 10 seconds
@@ -78,7 +80,7 @@ const allMockVideos: Video[] = Array.from({ length: 200 }, (_, i) => {
     id: `${isYouTube ? 'yt' : 'tk'}_${i}`,
     platform: isYouTube ? 'youtube' : 'tiktok',
     title: `Trending ${isYouTube ? 'Video' : 'Clip'} #${i + 1}: A Viral Moment`,
-    thumbnail: `https://picsum.photos/400/225?random=${i}`,
+    thumbnail: `https://picsum.photos/400/225.webp?random=${i}`, // Use efficient WebP format
     url: '#',
     creatorName: `Creator ${i + 1}`,
     creatorAvatar: `https://i.pravatar.cc/40?u=${i}`,
@@ -93,24 +95,74 @@ const allMockVideos: Video[] = Array.from({ length: 200 }, (_, i) => {
   };
 });
 
-const calculateVelocity = (video: Video): number => {
-    const hoursSinceUpload = (Date.now() - new Date(video.uploadDate).getTime()) / (1000 * 60 * 60);
-    if (hoursSinceUpload < 0.1) return video.viewCount * 10;
-    return video.viewCount / hoursSinceUpload;
-};
-
 const _mockBackend = (filters: ApiFilterParams): ApiResponse => {
   let results = [...allMockVideos];
-  // Filtering, sorting, and pagination logic remains the same...
-   if (filters.platform !== 'all') {
+  
+  if (filters.platform !== 'all') {
     results = results.filter(v => v.platform === filters.platform);
   }
-  // ... (rest of the filtering logic from the original file)
+
+  if (filters.uploadDate !== 'all') {
+    let startDate: Date | null = null;
+    switch (filters.uploadDate) {
+      case 'today':
+        startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case '24h':
+        startDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        break;
+      case '7d':
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '3m':
+        startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 3);
+        break;
+      case '6m':
+        startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 6);
+        break;
+      case '1y':
+        startDate = new Date();
+        startDate.setFullYear(startDate.getFullYear() - 1);
+        break;
+    }
+
+    if (startDate) {
+      results = results.filter(v => new Date(v.uploadDate) >= startDate!);
+    }
+  }
+
+  // Filter by video duration
+  if (filters.duration.length > 0) {
+    results = results.filter(video => {
+      // A video is kept if its duration matches ANY of the selected brackets.
+      return filters.duration.some(durationBracket => {
+        switch (durationBracket) {
+          case 60: // < 1 min
+            return video.duration < 60;
+          case 300: // 1-5 min
+            return video.duration >= 60 && video.duration < 300;
+          case 1200: // 5-20 min
+            return video.duration >= 300 && video.duration < 1200;
+          case Infinity: // > 20 min
+            return video.duration >= 1200;
+          default:
+            return false;
+        }
+      });
+    });
+  }
+
   results.sort((a, b) => {
     switch (filters.sortBy) {
         case 'date': return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime();
         case 'views': return b.viewCount - a.viewCount;
-        case 'trending': default: return calculateVelocity(b) - calculateVelocity(a);
+        case 'trending': default: return calculateVelocity(b.viewCount, b.uploadDate) - calculateVelocity(a.viewCount, a.uploadDate);
     }
   });
 
@@ -136,11 +188,27 @@ const _mockBackend = (filters: ApiFilterParams): ApiResponse => {
  * @returns A promise that resolves to an ApiResponse with a list of videos.
  */
 export const fetchTrends = (filters: Partial<ApiFilterParams>): Promise<ApiResponse> => {
-  // In a real app: return apiClient.get('/trends', { params: filters }).then(res => res.data);
   const fullFilters: ApiFilterParams = { ...initialFilterState, page: 1, limit: 20, ...filters };
-  console.log('Fetching with filters:', fullFilters);
+
+  // --- Caching Layer ---
+  const cacheKey = generateCacheKey(fullFilters);
+  const cachedResponse = getFromApiCache(cacheKey);
+  
+  if (cachedResponse) {
+    console.log('Serving from API cache (cache hit):', fullFilters);
+    // Return a copy to prevent mutation
+    return Promise.resolve(JSON.parse(JSON.stringify(cachedResponse)));
+  }
+
+  // --- Mock Fetch Layer (Simulates Network) ---
+  console.log('Fetching from mock backend (cache miss):', fullFilters);
   return new Promise((resolve) => {
-    setTimeout(() => { resolve(_mockBackend(fullFilters)); }, 500);
+    // Simulate network latency
+    setTimeout(() => { 
+      const response = _mockBackend(fullFilters);
+      setInApiCache(cacheKey, response); // Store the new response in the cache
+      resolve(response);
+    }, 500);
   });
 };
 

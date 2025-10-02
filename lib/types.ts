@@ -25,7 +25,7 @@ export interface Range {
   max: number;
 }
 
-export type UploadDateOption = 'all' | 'today' | '24h' | '7d' | '30d' | '3m' | '1y' | 'custom';
+export type UploadDateOption = 'all' | 'today' | '24h' | '7d' | '30d' | '3m' | '6m' | '1y' | 'custom';
 
 export interface CustomDateRange {
   start: string | null; // ISO string

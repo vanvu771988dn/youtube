@@ -1,125 +1,82 @@
-// FIX: Replaced placeholder content with the useTrends custom hook for data fetching.
-import { useReducer, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchTrends } from '../lib/api';
-import { Video, ApiFilterParams, FilterState, ApiError } from '../lib/types';
-import { useDebounce } from './useDebounce';
-import { dequal } from 'dequal';
+import { Video, ApiResponse, ApiError, FilterState } from '../lib/types';
 
-const PAGE_LIMIT = 20;
-
-interface TrendsState {
+interface UseTrendsReturn {
   videos: Video[];
-  isLoading: boolean;
-  isLoadingMore: boolean;
+  loading: boolean;
   error: ApiError | null;
   hasMore: boolean;
-  page: number;
+  loadMore: () => void;
+  refresh: () => void;
 }
 
-type TrendsAction =
-  | { type: 'FETCH_INIT' }
-  | { type: 'FETCH_MORE' }
-  | { type: 'FETCH_SUCCESS'; payload: { videos: Video[]; hasMore: boolean } }
-  | { type: 'FETCH_MORE_SUCCESS'; payload: { videos: Video[]; hasMore: boolean } }
-  | { type: 'FETCH_FAILURE'; payload: ApiError };
+// Custom hook to manage fetching and state for trending videos
+export const useTrends = (filters: FilterState): UseTrendsReturn => {
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<ApiError | null>(null);
+  
+  // Create a stable filter object for the useEffect dependency array.
+  // The fetch effect will now only re-run when these applied filters change.
+  const stableFilters = JSON.stringify(filters);
 
-const trendsReducer = (state: TrendsState, action: TrendsAction): TrendsState => {
-  switch (action.type) {
-    case 'FETCH_INIT':
-      return {
-        ...state,
-        videos: [],
-        isLoading: true,
-        isLoadingMore: false,
-        error: null,
-        page: 1,
-        hasMore: false,
-      };
-    case 'FETCH_MORE':
-      return {
-        ...state,
-        isLoadingMore: true,
-        error: null,
-      };
-    case 'FETCH_SUCCESS':
-      return {
-        ...state,
-        videos: action.payload.videos,
-        isLoading: false,
-        hasMore: action.payload.hasMore,
-        page: 2,
-      };
-    case 'FETCH_MORE_SUCCESS':
-      // Prevent duplicate videos from being added
-      const newVideos = action.payload.videos.filter(
-        v => !state.videos.some(sv => sv.id === v.id)
-      );
-      return {
-        ...state,
-        videos: [...state.videos, ...newVideos],
-        isLoadingMore: false,
-        hasMore: action.payload.hasMore,
-        page: state.page + 1,
-      };
-    case 'FETCH_FAILURE':
-      return {
-        ...state,
-        isLoading: false,
-        isLoadingMore: false,
-        error: action.payload,
-      };
-    default:
-      throw new Error('Unhandled action type');
-  }
-};
+  const fetchData = useCallback(async (currentPage: number, currentFilters: FilterState, isLoadMore: boolean) => {
+    // For the very first load, or a filter change, set loading to true.
+    // For "load more", we don't want the main spinner, so we don't set loading state here.
+    if (!isLoadMore) {
+        setLoading(true);
+    }
+    setError(null);
 
-const initialState: TrendsState = {
-  videos: [],
-  isLoading: true,
-  isLoadingMore: false,
-  error: null,
-  hasMore: false,
-  page: 1,
-};
-
-export const useTrends = (filters: FilterState) => {
-  const [state, dispatch] = useReducer(trendsReducer, initialState);
-  const debouncedFilters = useDebounce(filters, 500);
-
-  const fetchInitial = useCallback(async (currentFilters: FilterState) => {
-    dispatch({ type: 'FETCH_INIT' });
     try {
-      const params: Partial<ApiFilterParams> = { ...currentFilters, page: 1, limit: PAGE_LIMIT };
-      const response = await fetchTrends(params);
-      dispatch({
-        type: 'FETCH_SUCCESS',
-        payload: { videos: response.data, hasMore: response.meta.hasMore },
-      });
-    } catch (e) {
-      dispatch({ type: 'FETCH_FAILURE', payload: e as ApiError });
+      const response: ApiResponse = await fetchTrends({ ...currentFilters, page: currentPage, limit: 20 });
+      if (response.success) {
+        setVideos(prev => currentPage === 1 ? response.data : [...prev, ...response.data]);
+        setHasMore(response.meta.hasMore);
+      } else {
+        throw new Error('API request was not successful.');
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err);
+      } else {
+        const genericError = new ApiError(
+          err instanceof Error ? err.message : 'An unknown error occurred.',
+          undefined,
+          'An unexpected error occurred.'
+        );
+        setError(genericError);
+      }
+    } finally {
+      if (!isLoadMore) {
+        setLoading(false);
+      }
     }
   }, []);
 
-  const fetchMore = useCallback(async () => {
-    if (!state.hasMore || state.isLoadingMore || state.isLoading) return;
-    dispatch({ type: 'FETCH_MORE' });
-    try {
-      const params: Partial<ApiFilterParams> = { ...debouncedFilters, page: state.page, limit: PAGE_LIMIT };
-      const response = await fetchTrends(params);
-      dispatch({
-        type: 'FETCH_MORE_SUCCESS',
-        payload: { videos: response.data, hasMore: response.meta.hasMore },
-      });
-    } catch (e) {
-      dispatch({ type: 'FETCH_FAILURE', payload: e as ApiError });
-    }
-  }, [state.page, state.hasMore, state.isLoading, state.isLoadingMore, debouncedFilters]);
-
+  // Effect to reset and fetch data when applied filters change
   useEffect(() => {
-    // Using dequal to prevent re-fetching if the debounced object reference changes but values are the same.
-    const filtersChanged = !dequal(debouncedFilters, filters);
-    fetchInitial(debouncedFilters);
-  }, [debouncedFilters, fetchInitial]);
+    // Reset page and videos when filters change
+    setPage(1);
+    fetchData(1, filters, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stableFilters, fetchData]);
 
-  return { ...state, fetchMore };
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchData(nextPage, filters, true);
+    }
+  };
+
+  const refresh = () => {
+    setPage(1);
+    fetchData(1, filters, false);
+  };
+
+  return { videos, loading, error, hasMore, loadMore, refresh };
 };

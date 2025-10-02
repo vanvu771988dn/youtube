@@ -1,4 +1,3 @@
-// FIX: Replaced placeholder content with the useFilters custom hook and related constants.
 import { useState, useCallback } from 'react';
 import { FilterState } from '../lib/types';
 import { dequal } from 'dequal';
@@ -54,16 +53,27 @@ export const filterPresets: Record<string, Partial<FilterState>> = {
 // --- THE HOOK ---
 
 export const useFilters = (initialState: FilterState = initialFilterState) => {
+  // `filters` is the "draft" state that the UI controls are bound to.
   const [filters, setFilters] = useState<FilterState>(initialState);
+  // `appliedFilters` is the state that is actually used for fetching data.
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>(initialState);
 
+  // Updates the draft state as the user interacts with filter controls.
   const onFilterChange = useCallback(<K extends keyof FilterState>(key: K, value: FilterState[K]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
+  
+  // Commits the draft filters to the applied state, which will trigger a data fetch.
+  const applyFilters = useCallback(() => {
+    setAppliedFilters(filters);
+  }, [filters]);
 
+  // Resets the draft filters back to the initial state. The user must click "Apply" to see the change.
   const onClearFilters = useCallback(() => {
     setFilters(initialFilterState);
   }, []);
 
+  // Updates the draft filters with a preset. The user must click "Apply" to see the change.
   const onApplyPreset = useCallback((presetKey: keyof typeof filterPresets) => {
     const preset = filterPresets[presetKey];
     if (preset) {
@@ -72,13 +82,16 @@ export const useFilters = (initialState: FilterState = initialFilterState) => {
     }
   }, []);
 
-  const isFiltered = !dequal(filters, initialFilterState);
+  // Determines if any filters are active based on the APPLIED state.
+  const isFiltered = !dequal(appliedFilters, initialFilterState);
 
   return {
     filters,
+    appliedFilters,
     onFilterChange,
     onClearFilters,
     onApplyPreset,
+    applyFilters,
     isFiltered,
   };
 };
