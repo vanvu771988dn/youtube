@@ -1,14 +1,12 @@
-// FIX: Replaced placeholder content with all necessary type definitions for the application.
-
-// Represents a single video item from supported platforms (YouTube, Dailymotion, Reddit).
+// Represents a single video item, normalized from any source (YouTube, TikTok).
 export interface Video {
   id: string;
-  platform: Exclude<PlatformType, 'all'>;
+  platform: 'youtube' | 'tiktok';
   title: string;
   thumbnail: string;
   url: string;
   creatorName: string;
-  creatorAvatar: string; // Added field used in VideoCard
+  creatorAvatar: string;
   subscriberCount: number;
   viewCount: number;
   likeCount: number;
@@ -18,8 +16,9 @@ export interface Video {
   tags: string[];
   category?: string;
   commentCount?: number;
-  monetizationEnabled?: boolean; // Whether the channel is monetized (if known)
-  channelVideoCount?: number; // Number of videos on the channel (if known)
+  country?: string; // Country code
+  monetizationEnabled?: boolean; // YouTube only
+  videoCount?: number; // Total videos on channel
 }
 
 export interface Range {
@@ -36,29 +35,26 @@ export interface CustomDateRange {
 
 // Defines the state of the UI filters.
 export interface FilterState {
-  platform: PlatformType;
+  platform: 'all' | 'youtube' | 'tiktok';
   uploadDate: UploadDateOption;
   customDate: CustomDateRange;
   viewCount: Range;
   subscriberCount: Range;
-  channelVideoCount: Range; // new filter: number of videos on channel
   keywords: string;
   channelAge: 'all' | 1 | 3 | 5; // years
   duration: number[]; // array of max seconds for each bracket
   trending24h: boolean;
-  monetization: 'all' | 'enabled' | 'disabled'; // new filter: channel monetization
   sortBy: 'trending' | 'views' | 'date';
+  country: string; // Country code or 'all'
+  monetizationEnabled: 'all' | 'yes' | 'no';
+  videoCount: Range; // Range of videos on channel
 }
 
 // Parameters sent to the API, including pagination.
-export interface PaginationState {
-  pageToken?: string;  // For YouTube
-  after?: string;      // For Reddit
-  page?: number;       // For Dailymotion
+export type ApiFilterParams = FilterState & {
+  page: number;
   limit: number;
-}
-
-export type ApiFilterParams = FilterState & PaginationState;
+};
 
 // The expected structure of the API response.
 export interface ApiResponse {
@@ -71,11 +67,6 @@ export interface ApiResponse {
     hasMore: boolean;
     fetchedAt: string;
     cacheHit: boolean;
-    nextPageState?: {
-      pageToken?: string;  // For YouTube
-      after?: string;      // For Reddit
-      page?: number;       // For Dailymotion and PeerTube
-    };
   };
 }
 
@@ -93,7 +84,7 @@ export interface StatsResponse {
     data: {
         totalVideos: number;
         youtubeCount: number;
-        dailymotionCount: number;
+        tiktokCount: number;
         lastUpdated: string;
     };
 }
@@ -103,6 +94,3 @@ export interface PresetsResponse {
     success: boolean;
     data: Record<string, Partial<FilterState>>;
 }
-
-// Union type for platforms
-export type PlatformType = 'all' | 'youtube' | 'dailymotion' | 'reddit';

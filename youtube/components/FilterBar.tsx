@@ -1,26 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FilterState } from '../lib/types';
 import SearchBar from './SearchBar';
-import { DURATION_OPTIONS, MAX_VIEWS, MAX_SUBSCRIBERS, initialFilterState, filterPresets } from '../hooks/useFilters';
-import { FILTER_STEP } from '../hooks/useEnhancedFilters';
+import { DURATION_OPTIONS, MAX_VIEWS, MAX_SUBSCRIBERS, MAX_VIDEO_COUNT, initialFilterState, filterPresets, COUNTRIES } from '../hooks/useFilters';
 import { formatCount } from '../utils/formatters';
 import { dequal } from 'dequal';
 
 // --- PROPS INTERFACES ---
 
 interface FilterBarProps {
-  filters: FilterState; // The draft filters for UI controls
-  appliedFilters: FilterState; // The applied filters for comparison
+  filters: FilterState;
+  appliedFilters: FilterState;
   onFilterChange: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   onClearFilters: () => void;
   onApplyPreset: (preset: keyof typeof filterPresets) => void;
-  applyFilters: () => void; // The new function to apply filters
+  applyFilters: () => void;
 }
 
+// --- REUSABLE SUB-COMPONENTS ---
 
-// --- REUSABLE SUB-COMPONENTS (defined at the top level for stability) ---
-
-// A reusable toggle switch component
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; label: string }> = ({ checked, onChange, label }) => (
     <label className="flex items-center cursor-pointer">
         <div className="relative">
@@ -32,17 +29,28 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) =>
     </label>
 );
 
-// A reusable dual-thumb range slider, now fully controlled.
-const RangeSlider: React.FC<{ min: number; max: number; current: { min: number; max: number }; onChange: (val: { min: number; max: number }) => void; step?: number; label: string; }> = ({ min, max, current, onChange, step = 1, label }) => {
+// Updated dual-thumb range slider with unit steps of 1000
+const RangeSlider: React.FC<{ 
+  min: number; 
+  max: number; 
+  current: { min: number; max: number }; 
+  onChange: (val: { min: number; max: number }) => void; 
+  step?: number; 
+  label: string;
+  unit?: number; // Unit for snapping values
+}> = ({ min, max, current, onChange, step = 1, label, unit = 1000 }) => {
 
     const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Prevent min thumb from crossing max thumb.
-        const value = Math.min(Number(e.target.value), current.max);
+        let value = Math.min(Number(e.target.value), current.max);
+        // Snap to nearest unit
+        value = Math.round(value / unit) * unit;
         onChange({ min: value, max: current.max });
     };
+    
     const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Prevent max thumb from crossing min thumb.
-        const value = Math.max(Number(e.target.value), current.min);
+        let value = Math.max(Number(e.target.value), current.min);
+        // Snap to nearest unit
+        value = Math.round(value / unit) * unit;
         onChange({ min: current.min, max: value });
     };
     
@@ -60,14 +68,14 @@ const RangeSlider: React.FC<{ min: number; max: number; current: { min: number; 
             <div className="relative h-2">
                 <div className="absolute bg-slate-600 h-1 w-full rounded-full top-1/2 -translate-y-1/2"></div>
                 <div className="absolute bg-cyan-500 h-1 rounded-full top-1/2 -translate-y-1/2" style={{ left: `${minPos}%`, right: `${100 - maxPos}%` }}></div>
-                <input type="range" min={min} max={max} value={current.min} step={step} onChange={handleMinChange} className="absolute w-full h-2 opacity-0 cursor-pointer" />
-                <input type="range" min={min} max={max} value={current.max} step={step} onChange={handleMaxChange} className="absolute w-full h-2 opacity-0 cursor-pointer" />
+                <input type="range" min={min} max={max} value={current.min} step={unit} onChange={handleMinChange} className="absolute w-full h-2 opacity-0 cursor-pointer" />
+                <input type="range" min={min} max={max} value={current.max} step={unit} onChange={handleMaxChange} className="absolute w-full h-2 opacity-0 cursor-pointer" />
             </div>
         </div>
     );
 };
 
-// All filter controls, now as a stable, standalone component
+// All filter controls
 const FilterControls: React.FC<{ 
   filters: FilterState; 
   onFilterChange: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
@@ -79,15 +87,25 @@ const FilterControls: React.FC<{
           <label className="block text-sm font-medium mb-1">Search</label>
           <SearchBar keywords={filters.keywords} onKeywordsChange={(value) => onFilterChange('keywords', value)} />
         </div>
+        
         <div>
           <label className="block text-sm font-medium mb-1">Platform</label>
           <select value={filters.platform} onChange={(e) => onFilterChange('platform', e.target.value as FilterState['platform'])} className={commonSelectClasses}>
             <option value="all">All Platforms</option>
             <option value="youtube">YouTube</option>
-            <option value="dailymotion">Dailymotion</option>
-            <option value="reddit">Reddit</option>
+            <option value="tiktok">TikTok</option>
           </select>
         </div>
+        
+        <div>
+          <label className="block text-sm font-medium mb-1">Country</label>
+          <select value={filters.country} onChange={(e) => onFilterChange('country', e.target.value)} className={commonSelectClasses}>
+            {COUNTRIES.map(country => (
+              <option key={country.code} value={country.code}>{country.name}</option>
+            ))}
+          </select>
+        </div>
+        
         <div>
           <label className="block text-sm font-medium mb-1">Upload Date</label>
           <select value={filters.uploadDate} onChange={(e) => onFilterChange('uploadDate', e.target.value as FilterState['uploadDate'])} className={commonSelectClasses}>
@@ -101,23 +119,68 @@ const FilterControls: React.FC<{
             <option value="1y">Last Year</option>
           </select>
         </div>
+        
         <div>
           <label className="block text-sm font-medium mb-1">Sort By</label>
           <select value={filters.sortBy} onChange={(e) => onFilterChange('sortBy', e.target.value as FilterState['sortBy'])} className={commonSelectClasses}>
-            <option value="trending">Trending</option><option value="views">Most Views</option><option value="date">Newest</option>
+            <option value="trending">Trending</option>
+            <option value="views">Most Views</option>
+            <option value="date">Newest</option>
           </select>
         </div>
+        
+        {/* YouTube Specific Filters */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Monetization</label>
+          <select value={filters.monetizationEnabled} onChange={(e) => onFilterChange('monetizationEnabled', e.target.value as FilterState['monetizationEnabled'])} className={commonSelectClasses}>
+            <option value="all">All Channels</option>
+            <option value="yes">Monetized Only</option>
+            <option value="no">Not Monetized</option>
+          </select>
+        </div>
+        
         <div className="pt-4 self-end">
             <ToggleSwitch checked={filters.trending24h} onChange={val => onFilterChange('trending24h', val)} label="Trending in last 24h"/>
         </div>
         
-        {/* Advanced Filters */}
+        {/* Range Filters with 1000 unit steps */}
         <div className="md:col-span-2">
-            <RangeSlider label="View Count" min={0} max={MAX_VIEWS} step={FILTER_STEP} current={filters.viewCount} onChange={(val) => onFilterChange('viewCount', val)} />
+            <RangeSlider 
+              label="View Count" 
+              min={0} 
+              max={MAX_VIEWS} 
+              step={1000} 
+              unit={1000}
+              current={filters.viewCount} 
+              onChange={(val) => onFilterChange('viewCount', val)} 
+            />
         </div>
+        
         <div className="md:col-span-2">
-            <RangeSlider label="Subscriber Count" min={0} max={MAX_SUBSCRIBERS} step={FILTER_STEP} current={filters.subscriberCount} onChange={(val) => onFilterChange('subscriberCount', val)} />
+            <RangeSlider 
+              label="Subscriber Count" 
+              min={0} 
+              max={MAX_SUBSCRIBERS} 
+              step={1000} 
+              unit={1000}
+              current={filters.subscriberCount} 
+              onChange={(val) => onFilterChange('subscriberCount', val)} 
+            />
         </div>
+        
+        <div className="md:col-span-2">
+            <RangeSlider 
+              label="Channel Video Count" 
+              min={0} 
+              max={MAX_VIDEO_COUNT} 
+              step={10} 
+              unit={10}
+              current={filters.videoCount} 
+              onChange={(val) => onFilterChange('videoCount', val)} 
+            />
+        </div>
+        
+        {/* Duration Filter */}
         <div className="lg:col-span-4">
           <label className="block text-sm font-medium mb-1">Video Duration</label>
           <div className="flex flex-wrap gap-2 mt-2">
@@ -134,7 +197,6 @@ const FilterControls: React.FC<{
     </div>
 );
 
-
 // --- MAIN FILTER BAR COMPONENT ---
 
 const FilterBar: React.FC<FilterBarProps> = ({ filters, appliedFilters, onFilterChange, onClearFilters, onApplyPreset, applyFilters }) => {
@@ -142,7 +204,6 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, appliedFilters, onFilter
   const [isMobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   const activeFilterCount = useMemo(() => {
-      // Count is based on the currently APPLIED filters
       return Object.keys(appliedFilters).reduce((count, key) => {
           const filterKey = key as keyof FilterState;
           if (!dequal(appliedFilters[filterKey], initialFilterState[filterKey])) {
@@ -152,7 +213,6 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, appliedFilters, onFilter
       }, 0);
   }, [appliedFilters]);
 
-  // Check if there are changes waiting to be applied
   const hasPendingChanges = useMemo(() => !dequal(filters, appliedFilters), [filters, appliedFilters]);
 
   return (
@@ -165,6 +225,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, appliedFilters, onFilter
                 {hasPendingChanges && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400"></span>}
             </button>
         </div>
+        
         {isMobileSheetOpen && (
             <div className="fixed inset-0 bg-black/60 z-30 animate-fade-in" onClick={() => setMobileSheetOpen(false)}>
                 <div onClick={e => e.stopPropagation()} className="fixed bottom-0 left-0 right-0 max-h-[80vh] bg-slate-800 rounded-t-2xl shadow-2xl overflow-y-auto" style={{ animation: 'slideInUp 0.3s ease-out' }}>
@@ -210,6 +271,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, appliedFilters, onFilter
                         <option value="viral-shorts">Viral Shorts</option>
                         <option value="new-creators">New Creators</option>
                         <option value="deep-dives">Deep Dives</option>
+                        <option value="monetized-channels">Monetized Channels</option>
                     </select>
                 </div>
                 <div className="flex items-center gap-4">

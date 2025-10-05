@@ -4,8 +4,9 @@ import { dequal } from 'dequal';
 
 // --- CONSTANTS ---
 
-export const MAX_VIEWS = 20_000_000;
-export const MAX_SUBSCRIBERS = 10_000_000;
+export const MAX_VIEWS = 100_000_000; // Increased max for better range
+export const MAX_SUBSCRIBERS = 50_000_000; // Increased max for better range
+export const MAX_VIDEO_COUNT = 10000;
 
 export const DURATION_OPTIONS = [
   { label: '< 1 min', value: 60 },
@@ -14,10 +15,35 @@ export const DURATION_OPTIONS = [
   { label: '> 20 min', value: Infinity },
 ];
 
+// List of countries for filtering
+export const COUNTRIES = [
+  { code: 'all', name: 'All Countries' },
+  { code: 'US', name: 'United States' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'KR', name: 'South Korea' },
+  { code: 'IN', name: 'India' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'TH', name: 'Thailand' },
+  { code: 'VN', name: 'Vietnam' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'PH', name: 'Philippines' },
+];
+
 // --- INITIAL STATE & PRESETS ---
 
 export const initialFilterState: FilterState = {
-  platform: 'youtube',
+  platform: 'all',
   uploadDate: 'all',
   customDate: { start: null, end: null },
   viewCount: { min: 0, max: MAX_VIEWS },
@@ -27,12 +53,15 @@ export const initialFilterState: FilterState = {
   duration: [],
   trending24h: false,
   sortBy: 'trending',
+  country: 'all',
+  monetizationEnabled: 'all',
+  videoCount: { min: 0, max: MAX_VIDEO_COUNT },
 };
 
 export const filterPresets: Record<string, Partial<FilterState>> = {
-  "viral-videos": {
-    platform: 'youtube',
-    uploadDate: '24h',
+  "viral-shorts": {
+    platform: 'all',
+    duration: [60],
     sortBy: 'trending',
     viewCount: { min: 1_000_000, max: MAX_VIEWS },
     trending24h: true,
@@ -45,8 +74,14 @@ export const filterPresets: Record<string, Partial<FilterState>> = {
   },
   "deep-dives": {
     platform: 'youtube',
-    duration: [1200, Infinity], // Videos longer than 20 minutes
+    duration: [Infinity],
     sortBy: 'views',
+  },
+  "monetized-channels": {
+    platform: 'youtube',
+    monetizationEnabled: 'yes',
+    subscriberCount: { min: 1_000, max: MAX_SUBSCRIBERS },
+    videoCount: { min: 10, max: MAX_VIDEO_COUNT },
   },
 };
 
