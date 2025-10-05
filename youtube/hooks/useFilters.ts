@@ -17,7 +17,7 @@ export const DURATION_OPTIONS = [
 // --- INITIAL STATE & PRESETS ---
 
 export const initialFilterState: FilterState = {
-  platform: 'dailymotion',
+  platform: 'youtube',
   uploadDate: 'all',
   customDate: { start: null, end: null },
   viewCount: { min: 0, max: MAX_VIEWS },
@@ -30,9 +30,9 @@ export const initialFilterState: FilterState = {
 };
 
 export const filterPresets: Record<string, Partial<FilterState>> = {
-  "viral-shorts": {
-    platform: 'all',
-    duration: [60],
+  "viral-videos": {
+    platform: 'youtube',
+    uploadDate: '24h',
     sortBy: 'trending',
     viewCount: { min: 1_000_000, max: MAX_VIEWS },
     trending24h: true,
@@ -45,7 +45,7 @@ export const filterPresets: Record<string, Partial<FilterState>> = {
   },
   "deep-dives": {
     platform: 'youtube',
-    duration: [Infinity],
+    duration: [1200, Infinity], // Videos longer than 20 minutes
     sortBy: 'views',
   },
 };

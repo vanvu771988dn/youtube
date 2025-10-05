@@ -31,20 +31,20 @@ const YouTubeTest: React.FC = () => {
       // Initialize YouTube service
       const youtubeService = new YouTubeService(config.youtubeApiKey);
 
-      // Test 1: Get trending videos
-      console.log('Testing YouTube API - Getting trending videos...');
-      const trendingVideos = await youtubeService.getTrendingVideos(5);
+      // Test 1: Get recent videos (without keywords)
+      console.log('Testing YouTube API - Getting recent videos...');
+      const recentVideos = await youtubeService.searchVideos('', 5);
       
-      if (trendingVideos.length === 0) {
+      if (recentVideos.length === 0) {
         setTestResult({
           success: false,
-          message: 'No trending videos found',
+          message: 'No recent videos found',
           error: 'API returned empty results'
         });
         return;
       }
 
-      // Test 2: Search for videos
+      // Test 2: Search for videos with keywords
       console.log('Testing YouTube API - Searching for videos...');
       const searchResults = await youtubeService.searchVideos('trending', 3);
 
@@ -52,13 +52,13 @@ const YouTubeTest: React.FC = () => {
         success: true,
         message: 'YouTube API integration successful!',
         data: {
-          trendingVideos: trendingVideos.length,
+          recentVideos: recentVideos.length,
           searchResults: searchResults.length,
           sampleVideo: {
-            title: trendingVideos[0]?.title,
-            creator: trendingVideos[0]?.creatorName,
-            views: trendingVideos[0]?.viewCount,
-            platform: trendingVideos[0]?.platform
+            title: recentVideos[0]?.title,
+            creator: recentVideos[0]?.creatorName,
+            views: recentVideos[0]?.viewCount,
+            platform: recentVideos[0]?.platform
           }
         }
       });
@@ -84,7 +84,7 @@ const YouTubeTest: React.FC = () => {
           Test the YouTube Data API v3 integration:
         </p>
         <ul className="text-sm text-slate-400 list-disc list-inside mb-4">
-          <li>Fetches trending videos</li>
+          <li>Fetches recent videos</li>
           <li>Searches for videos by keyword</li>
           <li>Validates API key configuration</li>
         </ul>
@@ -116,7 +116,7 @@ const YouTubeTest: React.FC = () => {
           
           {testResult.data && (
             <div className="mt-3 text-sm text-slate-300">
-              <p>✅ Found {testResult.data.trendingVideos} trending videos</p>
+              <p>✅ Found {testResult.data.recentVideos} recent videos</p>
               <p>✅ Found {testResult.data.searchResults} search results</p>
               {testResult.data.sampleVideo && (
                 <div className="mt-2 p-2 bg-slate-700 rounded">

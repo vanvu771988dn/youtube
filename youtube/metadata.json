@@ -1,5 +1,5 @@
 {
   "name": "TrendHub",
-  "description": "A real-time social media trend aggregator for YouTube and TikTok. It showcases trending content with an advanced filtering system, all powered by dynamically generated data without a traditional database.",
+  "description": "A real-time social media trend aggregator for YouTube, Dailymotion, and Reddit. It showcases trending content with an advanced filtering system, all powered by dynamically generated data without a traditional database.",
   "requestFramePermissions": []
 }

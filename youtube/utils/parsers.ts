@@ -42,52 +42,71 @@ export const extractKeywords = (text: string): string[] => {
 };
 
 /**
- * Normalizes video data from different platforms into a consistent `Video` object.
- * This is a conceptual example; actual implementation depends on real API responses.
- * @param data The raw video data object from a platform's API.
- * @param platform The platform the data is from ('youtube' or 'tiktok').
- * @returns A normalized `Video` object.
+ * Normalizes video data from various platforms into our common Video type
+ * @param data Raw video data from the API
+ * @param platform The platform the data is from ('youtube' | 'dailymotion' | 'reddit').
+ * @returns Normalized Video object
  */
-export const normalizeVideoData = (data: any, platform: 'youtube' | 'tiktok'): Video => {
-  if (platform === 'youtube') {
-    // Example mapping for a YouTube API Video resource
-    return {
-      id: typeof data.id === 'object' ? data.id.videoId : data.id,
-      platform: 'youtube',
-      title: data.snippet.title,
-      thumbnail: data.snippet.thumbnails.high.url,
-      url: `https://www.youtube.com/watch?v=${typeof data.id === 'object' ? data.id.videoId : data.id}`,
-      creatorName: data.snippet.channelTitle,
-      creatorAvatar: 'https://i.pravatar.cc/40?u=' + data.snippet.channelId, // Placeholder
-      subscriberCount: data.statistics ? parseInt(data.statistics.subscriberCount, 10) : 0,
-      viewCount: data.statistics ? parseInt(data.statistics.viewCount, 10) : 0,
-      likeCount: data.statistics ? parseInt(data.statistics.likeCount, 10) : 0,
-      duration: data.contentDetails ? parseISODuration(data.contentDetails.duration) : 0,
-      uploadDate: data.snippet.publishedAt,
-      channelAge: undefined, // This would require another API call in reality
-      tags: data.snippet.tags || [],
-      category: data.snippet.categoryId,
-      commentCount: data.statistics ? parseInt(data.statistics.commentCount, 10) : 0,
-    };
-  } else {
-    // Example mapping for a hypothetical TikTok API item
-    return {
-      id: data.id,
-      platform: 'tiktok',
-      title: data.title,
-      thumbnail: data.cover_image_url,
-      url: data.share_url,
-      creatorName: data.author.nickname,
-      creatorAvatar: data.author.avatar_thumb.url_list[0],
-      subscriberCount: data.author.follower_count, // TikTok calls them followers
-      viewCount: data.statistics.play_count,
-      likeCount: data.statistics.digg_count,
-      duration: data.duration, // Assuming duration is already in seconds
-      uploadDate: new Date(data.create_time * 1000).toISOString(),
-      channelAge: undefined,
-      tags: data.text_extra?.map((t: any) => t.hashtag_name).filter(Boolean) || [],
-      category: undefined,
-      commentCount: data.statistics.comment_count,
-    };
+export const normalizeVideoData = (data: any, platform: 'youtube' | 'dailymotion' | 'reddit'): Video => {
+  switch (platform) {
+    case 'youtube':
+      return {
+        id: data.id,
+        platform: 'youtube',
+        title: data.title,
+        thumbnail: data.thumbnail,
+        url: data.url,
+        creatorName: data.channelTitle,
+        creatorAvatar: data.channelThumbnail,
+        subscriberCount: data.channelSubscriberCount || 0,
+        viewCount: data.viewCount,
+        likeCount: data.likeCount,
+        duration: data.duration,
+        uploadDate: data.publishedAt,
+        tags: data.tags || [],
+        channelAge: data.channelAge,
+        category: data.categoryId,
+        commentCount: data.commentCount || 0,
+      };
+    case 'dailymotion':
+      return {
+        id: data.id,
+        platform: 'dailymotion',
+        title: data.title,
+        thumbnail: data.thumbnail_url,
+        url: data.url,
+        creatorName: data.owner.screenname,
+        creatorAvatar: data.owner.avatar_360_url,
+        subscriberCount: 0, // Dailymotion API doesn't provide this
+        viewCount: data.views_total,
+        likeCount: 0, // Not provided by API
+        duration: data.duration,
+        uploadDate: data.created_time,
+        tags: data.tags || [],
+        channelAge: undefined,
+        category: data.channel || undefined,
+        commentCount: 0, // Not provided by API
+      };
+    case 'reddit':
+      return {
+        id: data.id,
+        platform: 'reddit',
+        title: data.title,
+        thumbnail: data.thumbnail,
+        url: data.url,
+        creatorName: data.author,
+        creatorAvatar: data.authorAvatar || '',
+        subscriberCount: data.subredditSubscribers || 0,
+        viewCount: data.score || 0,
+        likeCount: data.upvotes || 0,
+        duration: data.duration || 0,
+        uploadDate: data.created_utc,
+        tags: [data.subreddit || ''],
+        channelAge: undefined,
+        category: data.subreddit || undefined,
+        commentCount: data.num_comments || 0,
+      };
+    default:
+      throw new Error(`Unsupported platform: ${platform}`);
   }
 };

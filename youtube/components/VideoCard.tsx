@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { Video } from '../lib/types';
 import { formatCount, formatDuration, timeAgo } from '../utils/formatters';
 import YouTubeIcon from './icons/YouTubeIcon';
-import TikTokIcon from './icons/TikTokIcon';
 import DailymotionIcon from './icons/DailymotionIcon';
-import PeerTubeIcon from './icons/PeerTubeIcon';
 import RedditIcon from './icons/RedditIcon';
 
 interface VideoCardProps {
@@ -14,9 +12,7 @@ interface VideoCardProps {
 const getPlatformIcon = (platform: Video['platform']) => {
   switch (platform) {
     case 'youtube': return YouTubeIcon;
-    case 'tiktok': return TikTokIcon;
     case 'dailymotion': return DailymotionIcon;
-    case 'peertube': return PeerTubeIcon;
     case 'reddit': return RedditIcon;
     default: return YouTubeIcon;
   }
@@ -52,10 +48,18 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
         </h3>
 
         <div className="flex items-center mt-2 mb-3">
-            <img src={video.creatorAvatar} alt={video.creatorName} className="w-8 h-8 rounded-full mr-3" />
+            <img 
+                src={video.creatorAvatar || 'https://via.placeholder.com/40'} 
+                alt={video.creatorName} 
+                className="w-8 h-8 rounded-full mr-3"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = 'https://via.placeholder.com/40';
+                }}
+            />
             <div>
                 <p className="text-sm font-medium text-slate-300">{video.creatorName}</p>
-                <p className="text-xs text-slate-400">{formatCount(video.subscriberCount)} subscribers</p>
+                <p className="text-xs text-slate-400">{formatCount(video.subscriberCount || 0)} subscribers</p>
             </div>
         </div>
 

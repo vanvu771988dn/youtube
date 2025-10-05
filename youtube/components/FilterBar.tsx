@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { FilterState } from '../lib/types';
 import SearchBar from './SearchBar';
 import { DURATION_OPTIONS, MAX_VIEWS, MAX_SUBSCRIBERS, initialFilterState, filterPresets } from '../hooks/useFilters';
+import { FILTER_STEP } from '../hooks/useEnhancedFilters';
 import { formatCount } from '../utils/formatters';
 import { dequal } from 'dequal';
 
@@ -83,9 +84,7 @@ const FilterControls: React.FC<{
           <select value={filters.platform} onChange={(e) => onFilterChange('platform', e.target.value as FilterState['platform'])} className={commonSelectClasses}>
             <option value="all">All Platforms</option>
             <option value="youtube">YouTube</option>
-            <option value="tiktok">TikTok</option>
             <option value="dailymotion">Dailymotion</option>
-            <option value="peertube">PeerTube</option>
             <option value="reddit">Reddit</option>
           </select>
         </div>
@@ -114,10 +113,10 @@ const FilterControls: React.FC<{
         
         {/* Advanced Filters */}
         <div className="md:col-span-2">
-            <RangeSlider label="View Count" min={0} max={MAX_VIEWS} step={100000} current={filters.viewCount} onChange={(val) => onFilterChange('viewCount', val)} />
+            <RangeSlider label="View Count" min={0} max={MAX_VIEWS} step={FILTER_STEP} current={filters.viewCount} onChange={(val) => onFilterChange('viewCount', val)} />
         </div>
         <div className="md:col-span-2">
-            <RangeSlider label="Subscriber Count" min={0} max={MAX_SUBSCRIBERS} step={50000} current={filters.subscriberCount} onChange={(val) => onFilterChange('subscriberCount', val)} />
+            <RangeSlider label="Subscriber Count" min={0} max={MAX_SUBSCRIBERS} step={FILTER_STEP} current={filters.subscriberCount} onChange={(val) => onFilterChange('subscriberCount', val)} />
         </div>
         <div className="lg:col-span-4">
           <label className="block text-sm font-medium mb-1">Video Duration</label>

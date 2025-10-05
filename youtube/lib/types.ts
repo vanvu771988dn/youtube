@@ -1,6 +1,6 @@
 // FIX: Replaced placeholder content with all necessary type definitions for the application.
 
-// Represents a single video item, normalized from any source (YouTube, TikTok).
+// Represents a single video item from supported platforms (YouTube, Dailymotion, Reddit).
 export interface Video {
   id: string;
   platform: Exclude<PlatformType, 'all'>;
@@ -18,6 +18,8 @@ export interface Video {
   tags: string[];
   category?: string;
   commentCount?: number;
+  monetizationEnabled?: boolean; // Whether the channel is monetized (if known)
+  channelVideoCount?: number; // Number of videos on the channel (if known)
 }
 
 export interface Range {
@@ -39,18 +41,24 @@ export interface FilterState {
   customDate: CustomDateRange;
   viewCount: Range;
   subscriberCount: Range;
+  channelVideoCount: Range; // new filter: number of videos on channel
   keywords: string;
   channelAge: 'all' | 1 | 3 | 5; // years
   duration: number[]; // array of max seconds for each bracket
   trending24h: boolean;
+  monetization: 'all' | 'enabled' | 'disabled'; // new filter: channel monetization
   sortBy: 'trending' | 'views' | 'date';
 }
 
 // Parameters sent to the API, including pagination.
-export type ApiFilterParams = FilterState & {
-  page: number;
+export interface PaginationState {
+  pageToken?: string;  // For YouTube
+  after?: string;      // For Reddit
+  page?: number;       // For Dailymotion
   limit: number;
-};
+}
+
+export type ApiFilterParams = FilterState & PaginationState;
 
 // The expected structure of the API response.
 export interface ApiResponse {
@@ -63,6 +71,11 @@ export interface ApiResponse {
     hasMore: boolean;
     fetchedAt: string;
     cacheHit: boolean;
+    nextPageState?: {
+      pageToken?: string;  // For YouTube
+      after?: string;      // For Reddit
+      page?: number;       // For Dailymotion and PeerTube
+    };
   };
 }
 
@@ -80,7 +93,7 @@ export interface StatsResponse {
     data: {
         totalVideos: number;
         youtubeCount: number;
-        tiktokCount: number;
+        dailymotionCount: number;
         lastUpdated: string;
     };
 }
@@ -92,4 +105,4 @@ export interface PresetsResponse {
 }
 
 // Union type for platforms
-export type PlatformType = 'all' | 'youtube' | 'tiktok' | 'dailymotion' | 'peertube' | 'reddit';
+export type PlatformType = 'all' | 'youtube' | 'dailymotion' | 'reddit';

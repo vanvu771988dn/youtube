@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
 import { useFilters } from './hooks/useFilters';
-import { useTrends } from './hooks/useTrends';
+import { useVideos } from './hooks/useVideos';
 import ErrorBoundary from './components/errors/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 import YouTubeTest from './components/YouTubeTest';
@@ -13,7 +13,7 @@ const VideoGrid = React.lazy(() => import('./components/VideoGrid'));
 
 const App: React.FC = () => {
   const { filters, appliedFilters, onFilterChange, onClearFilters, onApplyPreset, applyFilters } = useFilters();
-  const { videos, loading, error, hasMore, loadMore, refresh } = useTrends(appliedFilters);
+  const { videos, loading, error, hasMore, loadMore, refresh } = useVideos(appliedFilters);
 
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans">

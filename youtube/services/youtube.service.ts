@@ -38,12 +38,10 @@ interface YouTubeChannel {
       medium: { url: string };
       high: { url: string };
     };
+    publishedAt: string;
   };
   statistics: {
     subscriberCount: string;
-  };
-  snippet: {
-    publishedAt: string;
   };
 }
 
@@ -64,6 +62,7 @@ interface YouTubeSearchResponse {
     };
   }>;
   nextPageToken?: string;
+  prevPageToken?: string;
   pageInfo: {
     totalResults: number;
     resultsPerPage: number;
@@ -133,84 +132,6 @@ class YouTubeService {
            thumbnails.default?.url;
   }
 
-  /**
-   * Fetches trending videos from YouTube
-   * @param maxResults Maximum number of results (default: 50)
-   * @param regionCode Region code (default: 'US')
-   * @param categoryId Category ID (default: '0' for all categories)
-   * @returns Promise<Video[]>
-   */
-  async getTrendingVideos(
-    maxResults: number = 50,
-    regionCode: string = 'US',
-    categoryId: string = '0'
-  ): Promise<Video[]> {
-    try {
-      // First, get trending video IDs
-      const searchUrl = `${this.baseUrl}/videos`;
-      const searchParams = new URLSearchParams({
-        part: 'snippet,statistics,contentDetails',
-        chart: 'mostPopular',
-        regionCode,
-        maxResults: maxResults.toString(),
-        key: this.apiKey,
-      });
-
-      if (categoryId !== '0') {
-        searchParams.append('videoCategoryId', categoryId);
-      }
-
-      const response = await fetch(`${searchUrl}?${searchParams}`);
-      
-      if (!response.ok) {
-        throw new Error(`YouTube API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data: YouTubeVideosResponse = await response.json();
-      
-      if (!data.items || data.items.length === 0) {
-        return [];
-      }
-
-      // Get channel information for each video
-      const channelIds = [...new Set(data.items.map(video => video.snippet.channelId))];
-      const channels = await this.getChannelsInfo(channelIds);
-      const channelMap = new Map(channels.map(channel => [channel.id, channel]));
-
-      // Transform YouTube videos to our Video format
-      const videos: Video[] = data.items.map(video => {
-        const channel = channelMap.get(video.snippet.channelId);
-        const duration = this.parseDuration(video.contentDetails.duration);
-        const channelAge = channel ? this.calculateChannelAge(channel.snippet.publishedAt) : undefined;
-
-        return {
-          id: video.id,
-          platform: 'youtube' as const,
-          title: video.snippet.title,
-          thumbnail: this.getBestThumbnail(video.snippet.thumbnails),
-          url: `https://www.youtube.com/watch?v=${video.id}`,
-          creatorName: video.snippet.channelTitle,
-          creatorAvatar: channel?.snippet.thumbnails.high?.url || 
-                        channel?.snippet.thumbnails.medium?.url || 
-                        channel?.snippet.thumbnails.default?.url || '',
-          subscriberCount: channel ? parseInt(channel.statistics.subscriberCount, 10) : 0,
-          viewCount: parseInt(video.statistics.viewCount, 10),
-          likeCount: parseInt(video.statistics.likeCount, 10),
-          duration,
-          uploadDate: video.snippet.publishedAt,
-          channelAge,
-          tags: video.snippet.tags || [],
-          category: video.snippet.categoryId,
-          commentCount: parseInt(video.statistics.commentCount, 10),
-        };
-      });
-
-      return videos;
-    } catch (error) {
-      console.error('Error fetching trending videos:', error);
-      throw new Error(`Failed to fetch trending videos: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
 
   /**
    * Searches for videos on YouTube
@@ -224,41 +145,70 @@ class YouTubeService {
     query: string,
     maxResults: number = 50,
     order: 'relevance' | 'date' | 'rating' | 'viewCount' | 'title' = 'relevance',
-    publishedAfter?: string
-  ): Promise<Video[]> {
+    publishedAfter?: string,
+    pageToken?: string,
+    videoDuration?: 'short' | 'medium' | 'long'
+  ): Promise<{ videos: Video[]; nextPageToken?: string }> {
     try {
       // First, search for videos
       const searchUrl = `${this.baseUrl}/search`;
       const searchParams = new URLSearchParams({
         part: 'snippet',
-        q: query,
         type: 'video',
         maxResults: maxResults.toString(),
         order,
         key: this.apiKey,
+        //regionCode: 'US',  // Add region code for better results
+        safeSearch: 'none'  // Allow all content
+        //videoEmbeddable: 'true'  // Only embeddable videos
       });
+      
+      // If no specific query, use a broad category-based search
+      if (query && query.trim()) {
+        searchParams.append('q', query);
+      } else {
+        // When no query is provided, let's get trending videos by using common categories
+        searchParams.append('q', 'trending');
+      }
 
       if (publishedAfter) {
         searchParams.append('publishedAfter', publishedAfter);
       }
 
+      if (pageToken) {
+        searchParams.append('pageToken', pageToken);
+      }
+
+      if (videoDuration) {
+        // short: <4m, medium: 4-20m, long: >20m
+        searchParams.append('videoDuration', videoDuration);
+      }
+      
+      console.log('YouTube API request:', `${searchUrl}?${searchParams}`);
+
       const searchResponse = await fetch(`${searchUrl}?${searchParams}`);
       
       if (!searchResponse.ok) {
-        throw new Error(`YouTube API error: ${searchResponse.status} ${searchResponse.statusText}`);
+        const errorText = await searchResponse.text();
+        console.error('YouTube API error response:', errorText);
+        throw new Error(`YouTube API error: ${searchResponse.status} ${searchResponse.statusText} - ${errorText}`);
       }
 
       const searchData: YouTubeSearchResponse = await searchResponse.json();
+      console.log('YouTube search response:', searchData);
       
       if (!searchData.items || searchData.items.length === 0) {
-        return [];
+        return { videos: [], nextPageToken: undefined };
       }
 
       // Get detailed video information
       const videoIds = searchData.items.map(item => item.id.videoId);
       const videos = await this.getVideosInfo(videoIds);
 
-      return videos;
+      return {
+        videos,
+        nextPageToken: searchData.nextPageToken
+      };
     } catch (error) {
       console.error('Error searching videos:', error);
       throw new Error(`Failed to search videos: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -271,6 +221,10 @@ class YouTubeService {
    * @returns Promise<Video[]>
    */
   async getVideosInfo(videoIds: string[]): Promise<Video[]> {
+    if (!videoIds.length) {
+      return [];
+    }
+    
     try {
       const videosUrl = `${this.baseUrl}/videos`;
       const videosParams = new URLSearchParams({
