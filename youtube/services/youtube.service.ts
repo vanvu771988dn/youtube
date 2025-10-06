@@ -1,5 +1,6 @@
-import { Video } from '../types';
+import { Video } from '../lib/types';
 
+// YouTube Data API v3 types
 interface YouTubeVideo {
   id: string;
   snippet: {
@@ -43,15 +44,6 @@ interface YouTubeChannel {
   statistics: {
     subscriberCount: string;
     videoCount: string;
-  };
-  status?: {
-    isLinked?: boolean;
-    madeForKids?: boolean;
-  };
-  monetizationDetails?: {
-    access?: {
-      allowed?: boolean;
-    };
   };
 }
 
@@ -126,13 +118,9 @@ class YouTubeService {
            thumbnails.default?.url;
   }
 
-  // Estimate monetization based on available data
   private estimateMonetization(channel: YouTubeChannel): boolean {
     const subscriberCount = parseInt(channel.statistics.subscriberCount, 10);
     const videoCount = parseInt(channel.statistics.videoCount, 10);
-    
-    // YouTube Partner Program requirements: 1000+ subscribers and 4000+ watch hours
-    // We'll use subscribers and video count as proxy
     return subscriberCount >= 1000 && videoCount >= 10;
   }
 
@@ -318,7 +306,58 @@ class YouTubeService {
       return videos;
     } catch (error) {
       console.error('Error getting videos info:', error);
-      throw new Error(`Failed to get videos info: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    };
+      throw new Error(`Failed to get videos info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async getChannelsInfo(channelIds: string[]): Promise<YouTubeChannel[]> {
+    try {
+      const channelsUrl = `${this.baseUrl}/channels`;
+      const channelsParams = new URLSearchParams({
+        part: 'snippet,statistics',
+        id: channelIds.join(','),
+        key: this.apiKey,
+      });
+
+      const channelsResponse = await fetch(`${channelsUrl}?${channelsParams}`);
+      
+      if (!channelsResponse.ok) {
+        throw new Error(`YouTube API error: ${channelsResponse.status} ${channelsResponse.statusText}`);
+      }
+
+      const channelsData: YouTubeChannelsResponse = await channelsResponse.json();
+      return channelsData.items || [];
+    } catch (error) {
+      console.error('Error getting channels info:', error);
+      return [];
+    }
+  }
+
+  async getVideoCategories(regionCode: string = 'US'): Promise<Array<{id: string, title: string}>> {
+    try {
+      const categoriesUrl = `${this.baseUrl}/videoCategories`;
+      const categoriesParams = new URLSearchParams({
+        part: 'snippet',
+        regionCode,
+        key: this.apiKey,
+      });
+
+      const response = await fetch(`${categoriesUrl}?${categoriesParams}`);
+      
+      if (!response.ok) {
+        throw new Error(`YouTube API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.items?.map((item: any) => ({
+        id: item.id,
+        title: item.snippet.title
+      })) || [];
+    } catch (error) {
+      console.error('Error getting video categories:', error);
+      return [];
+    }
   }
 }
+
+export default YouTubeService;

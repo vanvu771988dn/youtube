@@ -6,7 +6,7 @@ export interface Video {
   thumbnail: string;
   url: string;
   creatorName: string;
-  creatorAvatar: string; // Added field used in VideoCard
+  creatorAvatar: string;
   subscriberCount: number;
   viewCount: number;
   likeCount: number;
@@ -16,6 +16,9 @@ export interface Video {
   tags: string[];
   category?: string;
   commentCount?: number;
+  country?: string; // Country code
+  monetizationEnabled?: boolean; // YouTube only
+  videoCount?: number; // Total videos on channel
 }
 
 export interface Range {
@@ -42,6 +45,9 @@ export interface FilterState {
   duration: number[]; // array of max seconds for each bracket
   trending24h: boolean;
   sortBy: 'trending' | 'views' | 'date';
+  country: string; // Country code or 'all'
+  monetizationEnabled: 'all' | 'yes' | 'no';
+  videoCount: Range; // Range of videos on channel
   category?: string; // YouTube category ID
 }
 

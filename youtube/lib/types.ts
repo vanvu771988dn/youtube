@@ -16,9 +16,12 @@ export interface Video {
   tags: string[];
   category?: string;
   commentCount?: number;
-  country?: string; // Country code
-  monetizationEnabled?: boolean; // YouTube only
-  videoCount?: number; // Total videos on channel
+  // Channel-specific fields
+  channelId?: string;
+  channelCreatedAt?: string;
+  monetizationEnabled?: boolean;
+  monetizationStartDate?: string;
+  videoCount?: number;
 }
 
 export interface Range {
@@ -27,27 +30,45 @@ export interface Range {
 }
 
 export type UploadDateOption = 'all' | 'today' | '24h' | '7d' | '30d' | '3m' | '6m' | '1y' | 'custom';
+export type ChannelAgeOption = 'all' | '6m' | '1y' | '2y' | '5y' | '10y';
 
 export interface CustomDateRange {
   start: string | null; // ISO string
   end: string | null;   // ISO string
 }
 
-// Defines the state of the UI filters.
-export interface FilterState {
-  platform: 'all' | 'youtube' | 'tiktok';
+// NEW: Filter mode type
+export type FilterMode = 'video' | 'channel';
+
+// Video-specific filters
+export interface VideoFilters {
   uploadDate: UploadDateOption;
   customDate: CustomDateRange;
   viewCount: Range;
-  subscriberCount: Range;
-  keywords: string;
-  channelAge: 'all' | 1 | 3 | 5; // years
   duration: number[]; // array of max seconds for each bracket
   trending24h: boolean;
-  sortBy: 'trending' | 'views' | 'date';
-  country: string; // Country code or 'all'
+}
+
+// Channel-specific filters
+export interface ChannelFilters {
+  subscriberCount: Range;
+  videoCount: Range;
+  channelAge: ChannelAgeOption;
   monetizationEnabled: 'all' | 'yes' | 'no';
-  videoCount: Range; // Range of videos on channel
+  monetizationAge: ChannelAgeOption; // Time since monetization started
+}
+
+// Main filter state with mode
+export interface FilterState {
+  // Common filters
+  mode: FilterMode; // NEW: video or channel mode
+  platform: 'all' | 'youtube' | 'tiktok';
+  keywords: string;
+  sortBy: 'trending' | 'views' | 'date' | 'subscribers'; // Added subscribers
+  
+  // Mode-specific filters
+  videoFilters: VideoFilters;
+  channelFilters: ChannelFilters;
 }
 
 // Parameters sent to the API, including pagination.

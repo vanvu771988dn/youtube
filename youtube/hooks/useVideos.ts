@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchVideos } from '../lib/api';
-import { Video, ApiResponse, ApiError, FilterState, PaginationState, ApiFilterParams } from '../lib/types';
-import { mergeVideosWithoutDuplicates } from '../utils/deduplication';
+import { useState, useEffect, useCallback } from 'react';
+import { fetchTrends } from '../lib/api';
+import { Video, ApiResponse, ApiError, FilterState } from '../lib/types';
 
 interface UseVideosReturn {
   videos: Video[];
@@ -12,107 +11,41 @@ interface UseVideosReturn {
   refresh: () => void;
 }
 
+/**
+ * Custom hook to manage fetching and state for videos
+ * This replaces the old useVideos hook and uses the correct API methods
+ */
 export const useVideos = (filters: FilterState): UseVideosReturn => {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<ApiError | null>(null);
+  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  
-  // Use ref to store pagination state to avoid stale closures
-  const paginationRef = useRef<PaginationState>({ limit: 20 });
-  const filtersRef = useRef<FilterState>(filters);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<ApiError | null>(null);
   
   // Create a stable filter object for the useEffect dependency array
   const stableFilters = JSON.stringify(filters);
 
-  // Reset pagination state when platform changes
-  const resetPaginationState = useCallback((newFilters: FilterState) => {
-    const baseState: PaginationState = { limit: 20 };
-    
-    // Reset platform-specific pagination states
-    switch (newFilters.platform) {
-      case 'youtube':
-        paginationRef.current = { ...baseState, pageToken: undefined };
-        break;
-      case 'reddit':
-        paginationRef.current = { ...baseState, after: undefined };
-        break;
-      case 'dailymotion':
-        paginationRef.current = { ...baseState, page: 1 };
-        break;
-      default:
-        paginationRef.current = { ...baseState, page: 1 };
-        break;
+  const fetchData = useCallback(async (currentPage: number, currentFilters: FilterState, isLoadMore: boolean) => {
+    // For the very first load, or a filter change, set loading to true
+    if (!isLoadMore) {
+      setLoading(true);
     }
-  }, []);
-
-  // Function to fetch videos with pagination
-  const fetchData = useCallback(async (isLoadMore: boolean = false) => {
-    if (loading) {
-      console.log('[useVideos] Already loading, skipping request');
-      return;
-    }
-    
-    setLoading(true);
     setError(null);
-    
-    const currentFilters = filtersRef.current;
-    const currentPagination = paginationRef.current;
-    
-    console.log('[useVideos] Starting fetch:', { 
-      isLoadMore, 
-      currentPagination,
-      platform: currentFilters.platform
-    });
 
     try {
-      const mergedParams: ApiFilterParams = {
-        ...currentFilters,
-        ...currentPagination
-      };
+      const response: ApiResponse = await fetchTrends({ 
+        ...currentFilters, 
+        page: currentPage, 
+        limit: 20 
+      });
       
-      console.log('[useVideos] API params:', mergedParams);
-      const response = await fetchVideos(mergedParams);
-
       if (response.success) {
-        const newVideos = response.data || [];
-        console.log('[useVideos] Received videos:', newVideos.length);
-        
-        if (newVideos.length === 0) {
-          setHasMore(false);
-          return;
-        }
-        
-        setVideos(prev => {
-          if (isLoadMore) {
-            // Merge with existing videos and remove duplicates
-            const merged = mergeVideosWithoutDuplicates(prev, newVideos);
-            console.log('[useVideos] Merged videos:', prev.length, '+', newVideos.length, '=', merged.length);
-            return merged;
-          } else {
-            // Replace all videos (initial load or refresh)
-            console.log('[useVideos] Replacing videos:', newVideos.length);
-            return newVideos;
-          }
-        });
-        
-        // Update pagination state with next page token if available
-        if (response.meta?.nextPageState) {
-          paginationRef.current = {
-            ...paginationRef.current,
-            ...response.meta.nextPageState
-          };
-          console.log('[useVideos] Updated pagination state:', paginationRef.current);
-        }
-        
-        const responseHasMore = response.meta?.hasMore ?? false;
-        setHasMore(responseHasMore && newVideos.length > 0);
-        console.log('[useVideos] Has more:', responseHasMore, 'New videos:', newVideos.length);
+        setVideos(prev => currentPage === 1 ? response.data : [...prev, ...response.data]);
+        setHasMore(response.meta.hasMore);
       } else {
         throw new Error('API request was not successful.');
       }
     } catch (err) {
-      console.error('[useVideos] Error fetching data:', err);
       if (err instanceof ApiError) {
         setError(err);
       } else {
@@ -123,55 +56,32 @@ export const useVideos = (filters: FilterState): UseVideosReturn => {
         );
         setError(genericError);
       }
-      setHasMore(false);
     } finally {
-      setLoading(false);
+      if (!isLoadMore) {
+        setLoading(false);
+      }
     }
-  }, [loading]);
+  }, []);
 
   // Effect to reset and fetch data when applied filters change
   useEffect(() => {
-    console.log('[useVideos] Filters changed, resetting state');
-    // Update current filters
-    filtersRef.current = filters;
-    
-    // Reset everything when filters change
-    setVideos([]);
-    setHasMore(true);
-    setError(null);
-    
-    // Reset pagination state
-    resetPaginationState(filters);
-    
-    // Fetch initial data
-    fetchData(false);
+    setPage(1);
+    fetchData(1, filters, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stableFilters]);
+  }, [stableFilters, fetchData]);
 
-  const loadMore = useCallback(() => {
+  const loadMore = () => {
     if (!loading && hasMore) {
-      console.log('[useVideos] Loading more videos...');
-      fetchData(true);
-    } else {
-      console.log('[useVideos] Cannot load more:', { loading, hasMore });
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchData(nextPage, filters, true);
     }
-  }, [loading, hasMore, fetchData]);
-
-  const refresh = useCallback(() => {
-    console.log('[useVideos] Refreshing videos...');
-    setVideos([]);
-    setHasMore(true);
-    setError(null);
-    resetPaginationState(filtersRef.current);
-    fetchData(false);
-  }, [fetchData, resetPaginationState]);
-
-  return { 
-    videos, 
-    loading, 
-    error, 
-    hasMore, 
-    loadMore, 
-    refresh 
   };
+
+  const refresh = () => {
+    setPage(1);
+    fetchData(1, filters, false);
+  };
+
+  return { videos, loading, error, hasMore, loadMore, refresh };
 };
