@@ -1,12 +1,19 @@
 import { useState, useCallback } from 'react';
-import { FilterState, VideoFilters, ChannelFilters } from '../lib/types';
+import { FilterState } from '../lib/types';
 import { dequal } from 'dequal';
-
-// --- CONSTANTS ---
 
 export const MAX_VIEWS = 20_000_000;
 export const MAX_SUBSCRIBERS = 10_000_000;
-export const MAX_VIDEO_COUNT = 10_000;
+export const MAX_VIDEO_COUNT = 1_000_000;
+
+export const CHANNEL_AGE_OPTIONS = [
+  { label: 'All', value: 'all' as const },
+  { label: '6+ months', value: '6m' as const },
+  { label: '1+ years', value: '1y' as const },
+  { label: '2+ years', value: '2y' as const },
+  { label: '5+ years', value: '5y' as const },
+  { label: '10+ years', value: '10y' as const },
+];
 
 export const DURATION_OPTIONS = [
   { label: '< 1 min', value: 60 },
@@ -15,134 +22,113 @@ export const DURATION_OPTIONS = [
   { label: '> 20 min', value: Infinity },
 ];
 
-export const CHANNEL_AGE_OPTIONS = [
-  { label: 'All Time', value: 'all' },
-  { label: 'Last 6 Months', value: '6m' },
-  { label: 'Last Year', value: '1y' },
-  { label: 'Last 2 Years', value: '2y' },
-  { label: 'Last 5 Years', value: '5y' },
-  { label: 'Last 10 Years', value: '10y' },
+export const COUNTRY_OPTIONS = [
+  { code: 'US', label: 'United States' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'CA', label: 'Canada' },
+  { code: 'AU', label: 'Australia' },
+  { code: 'IN', label: 'India' },
+  { code: 'JP', label: 'Japan' },
+  { code: 'KR', label: 'Korea' },
+  { code: 'VN', label: 'Vietnam' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'FR', label: 'France' },
 ];
 
-// --- INITIAL STATE ---
-
-const initialVideoFilters: VideoFilters = {
-  uploadDate: 'all',
-  customDate: { start: null, end: null },
-  viewCount: { min: 0, max: MAX_VIEWS },
-  duration: [],
-  trending24h: false,
-};
-
-const initialChannelFilters: ChannelFilters = {
-  subscriberCount: { min: 0, max: MAX_SUBSCRIBERS },
-  videoCount: { min: 0, max: MAX_VIDEO_COUNT },
-  channelAge: 'all',
-  monetizationEnabled: 'all',
-  monetizationAge: 'all',
-};
-
 export const initialFilterState: FilterState = {
+  // Common
   mode: 'video',
   platform: 'all',
   keywords: '',
   sortBy: 'trending',
-  videoFilters: initialVideoFilters,
-  channelFilters: initialChannelFilters,
-};
+  country: 'ALL',
+  language: 'ALL',
+  // Category for YouTube (0 means all)
+  category: '0',
 
-// --- PRESETS ---
+  // Video-specific
+  videoFilters: {
+    uploadDate: 'all',
+    customDate: { start: null, end: null },
+    viewCount: { min: 0, max: MAX_VIEWS },
+    duration: [],
+    trending24h: false,
+  },
+
+  // Channel-specific
+  channelFilters: {
+    subscriberCount: { min: 0, max: MAX_SUBSCRIBERS },
+    videoCount: { min: 0, max: MAX_VIDEO_COUNT },
+    channelAge: 'all',
+    monetizationEnabled: 'all',
+    monetizationAge: 'all',
+    avgVideoLength: { min: 0, max: 7200 },
+  },
+};
 
 export const filterPresets: Record<string, Partial<FilterState>> = {
-  "viral-videos": {
+  'viral-videos': {
     mode: 'video',
-    platform: 'all',
     sortBy: 'trending',
     videoFilters: {
-      ...initialVideoFilters,
       duration: [60],
-      viewCount: { min: 1_000_000, max: MAX_VIEWS },
       trending24h: true,
+      viewCount: { min: 1_000_000, max: MAX_VIEWS },
+      uploadDate: 'all',
+      customDate: { start: null, end: null },
     },
   },
-  "new-creators": {
+  'new-creators': {
     mode: 'channel',
-    platform: 'youtube',
-    sortBy: 'trending',
-    channelFilters: {
-      ...initialChannelFilters,
-      subscriberCount: { min: 0, max: 100_000 },
-      channelAge: '1y',
-    },
-  },
-  "established-channels": {
-    mode: 'channel',
-    platform: 'youtube',
     sortBy: 'subscribers',
     channelFilters: {
-      ...initialChannelFilters,
-      subscriberCount: { min: 1_000_000, max: MAX_SUBSCRIBERS },
-      channelAge: '5y',
-      monetizationEnabled: 'yes',
+      subscriberCount: { min: 0, max: 100_000 },
+      channelAge: '1y',
+      videoCount: { min: 0, max: MAX_VIDEO_COUNT },
+      monetizationEnabled: 'all',
+      monetizationAge: 'all',
     },
   },
-  "deep-dives": {
+  'established-channels': {
+    mode: 'channel',
+    sortBy: 'subscribers',
+    channelFilters: {
+      subscriberCount: { min: 500_000, max: MAX_SUBSCRIBERS },
+      channelAge: '5y',
+      videoCount: { min: 0, max: MAX_VIDEO_COUNT },
+      monetizationEnabled: 'all',
+      monetizationAge: 'all',
+    },
+  },
+  'deep-dives': {
     mode: 'video',
-    platform: 'youtube',
     sortBy: 'views',
     videoFilters: {
-      ...initialVideoFilters,
-      duration: [Infinity],
+      duration: [1200],
+      viewCount: { min: 0, max: MAX_VIEWS },
+      uploadDate: 'all',
+      customDate: { start: null, end: null },
+      trending24h: false,
     },
   },
 };
-
-// --- THE HOOK ---
 
 export const useFilters = (initialState: FilterState = initialFilterState) => {
   const [filters, setFilters] = useState<FilterState>(initialState);
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(initialState);
 
-  // Update a top-level filter
   const onFilterChange = useCallback(<K extends keyof FilterState>(key: K, value: FilterState[K]) => {
-    setFilters(prev => {
-      const updated = { ...prev, [key]: value };
-      
-      // When switching modes, reset mode-specific filters
-      if (key === 'mode') {
-        return {
-          ...updated,
-          videoFilters: initialVideoFilters,
-          channelFilters: initialChannelFilters,
-        };
-      }
-      
-      return updated;
-    });
+    setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  // Update a video filter
-  const onVideoFilterChange = useCallback(<K extends keyof VideoFilters>(key: K, value: VideoFilters[K]) => {
-    setFilters(prev => ({
-      ...prev,
-      videoFilters: {
-        ...prev.videoFilters,
-        [key]: value,
-      },
-    }));
+  const onVideoFilterChange = useCallback(<K extends keyof FilterState['videoFilters']>(key: K, value: FilterState['videoFilters'][K]) => {
+    setFilters(prev => ({ ...prev, videoFilters: { ...prev.videoFilters, [key]: value } }));
   }, []);
 
-  // Update a channel filter
-  const onChannelFilterChange = useCallback(<K extends keyof ChannelFilters>(key: K, value: ChannelFilters[K]) => {
-    setFilters(prev => ({
-      ...prev,
-      channelFilters: {
-        ...prev.channelFilters,
-        [key]: value,
-      },
-    }));
+  const onChannelFilterChange = useCallback(<K extends keyof FilterState['channelFilters']>(key: K, value: FilterState['channelFilters'][K]) => {
+    setFilters(prev => ({ ...prev, channelFilters: { ...prev.channelFilters, [key]: value } }));
   }, []);
-
+  
   const applyFilters = useCallback(() => {
     setAppliedFilters(filters);
   }, [filters]);
@@ -154,10 +140,25 @@ export const useFilters = (initialState: FilterState = initialFilterState) => {
   const onApplyPreset = useCallback((presetKey: keyof typeof filterPresets) => {
     const preset = filterPresets[presetKey];
     if (preset) {
-      setFilters(prev => ({ 
-        ...initialFilterState, 
-        ...preset, 
+      setFilters(prev => ({
+        ...initialFilterState,
+        // keep current keywords intact
         keywords: prev.keywords,
+        // apply preset top-level fields if provided
+        mode: preset.mode ?? initialFilterState.mode,
+        platform: preset.platform ?? initialFilterState.platform,
+        sortBy: preset.sortBy ?? initialFilterState.sortBy,
+        // deep-merge nested filters
+        videoFilters: {
+          ...initialFilterState.videoFilters,
+          ...prev.videoFilters,
+          ...(preset.videoFilters ?? {}),
+        },
+        channelFilters: {
+          ...initialFilterState.channelFilters,
+          ...prev.channelFilters,
+          ...(preset.channelFilters ?? {}),
+        },
       }));
     }
   }, []);

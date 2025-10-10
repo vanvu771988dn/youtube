@@ -24,7 +24,7 @@ export const useVideos = (filters: FilterState): UseVideosReturn => {
   const [hasMore, setHasMore] = useState(true);
   
   // Use ref to store pagination state to avoid stale closures
-  const paginationRef = useRef<PaginationState>({ limit: 20 });
+  const paginationRef = useRef<PaginationState>({ limit: 50 });
   const filtersRef = useRef<FilterState>(filters);
   
   // Create a stable filter object for the useEffect dependency array
@@ -32,7 +32,7 @@ export const useVideos = (filters: FilterState): UseVideosReturn => {
 
   // Reset pagination state when platform changes
   const resetPaginationState = useCallback((platform: PlatformType) => {
-    const baseState: PaginationState = { limit: 20 };
+    const baseState: PaginationState = { limit: 50 };
     
     // Reset platform-specific pagination states
     switch (platform) {

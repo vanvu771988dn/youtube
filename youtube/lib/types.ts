@@ -1,7 +1,7 @@
 // Represents a single video item, normalized from any source (YouTube, TikTok).
 export interface Video {
   id: string;
-  platform: 'youtube' | 'tiktok';
+  platform: 'youtube' | 'tiktok' | 'reddit' | 'dailymotion';
   title: string;
   thumbnail: string;
   url: string;
@@ -16,12 +16,18 @@ export interface Video {
   tags: string[];
   category?: string;
   commentCount?: number;
+  language?: string; // default language/audio language
   // Channel-specific fields
   channelId?: string;
   channelCreatedAt?: string;
+  channelDescription?: string;
+  channelThumbnail?: string;
+  channelViewCount?: number;
   monetizationEnabled?: boolean;
   monetizationStartDate?: string;
   videoCount?: number;
+  avgVideoLength?: number; // computed average length of videos for a channel (seconds)
+  lastUpdatedAt?: string; // latest upload date among grouped videos
 }
 
 export interface Range {
@@ -40,6 +46,9 @@ export interface CustomDateRange {
 // NEW: Filter mode type
 export type FilterMode = 'video' | 'channel';
 
+// Platform type used across the app (includes all supported platforms)
+export type PlatformType = 'all' | 'youtube' | 'tiktok' | 'reddit' | 'dailymotion';
+
 // Video-specific filters
 export interface VideoFilters {
   uploadDate: UploadDateOption;
@@ -56,15 +65,19 @@ export interface ChannelFilters {
   channelAge: ChannelAgeOption;
   monetizationEnabled: 'all' | 'yes' | 'no';
   monetizationAge: ChannelAgeOption; // Time since monetization started
+  avgVideoLength: Range; // in seconds
 }
 
 // Main filter state with mode
 export interface FilterState {
   // Common filters
   mode: FilterMode; // NEW: video or channel mode
-  platform: 'all' | 'youtube' | 'tiktok';
+  platform: PlatformType;
   keywords: string;
   sortBy: 'trending' | 'views' | 'date' | 'subscribers'; // Added subscribers
+  country: string; // ISO 3166-1 alpha-2 region code for YouTube or 'ALL'
+  language: string; // BCP-47 (e.g., 'en') or 'ALL'
+  category?: string; // YouTube category ID as string ("0" means all)
   
   // Mode-specific filters
   videoFilters: VideoFilters;
@@ -75,6 +88,14 @@ export interface FilterState {
 export type ApiFilterParams = FilterState & {
   page: number;
   limit: number;
+};
+
+// Pagination state used for client-side navigation between pages/tokens
+export type PaginationState = {
+  limit: number;
+  page?: number;
+  pageToken?: string;
+  after?: string; // Reddit pagination token
 };
 
 // The expected structure of the API response.
@@ -88,6 +109,7 @@ export interface ApiResponse {
     hasMore: boolean;
     fetchedAt: string;
     cacheHit: boolean;
+    nextPageState?: Partial<PaginationState>;
   };
 }
 

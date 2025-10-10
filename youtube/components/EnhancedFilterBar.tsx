@@ -283,10 +283,36 @@ const FilterControls: React.FC<{
           <option value="trending">Trending</option>
           <option value="views">Most Views</option>
           <option value="date">Newest</option>
+          {filters.mode === 'channel' && <option value="subscribers">Most Subscribers</option>}
         </select>
         {getFieldError('sortBy') && (
           <p className="text-red-400 text-xs">{getFieldError('sortBy')}</p>
         )}
+      </div>
+
+      {/* YouTube Category */}
+      <div className="space-y-1">
+        <label className="block text-sm font-medium mb-1">YouTube Category</label>
+        <select 
+          value={(filters as any).category || '0'} 
+          onChange={(e) => onFilterChange('category' as any, e.target.value as any)} 
+          className={commonSelectClasses}
+        >
+          <option value="0">All Categories</option>
+          <option value="1">Film & Animation</option>
+          <option value="2">Autos & Vehicles</option>
+          <option value="10">Music</option>
+          <option value="15">Pets & Animals</option>
+          <option value="17">Sports</option>
+          <option value="20">Gaming</option>
+          <option value="22">People & Blogs</option>
+          <option value="23">Comedy</option>
+          <option value="24">Entertainment</option>
+          <option value="25">News & Politics</option>
+          <option value="26">Howto & Style</option>
+          <option value="27">Education</option>
+          <option value="28">Science & Technology</option>
+        </select>
       </div>
 
       <div className="pt-4 self-end">

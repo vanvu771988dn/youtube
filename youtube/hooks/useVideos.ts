@@ -36,7 +36,7 @@ export const useVideos = (filters: FilterState): UseVideosReturn => {
       const response: ApiResponse = await fetchTrends({ 
         ...currentFilters, 
         page: currentPage, 
-        limit: 20 
+        limit: 50 
       });
       
       if (response.success) {

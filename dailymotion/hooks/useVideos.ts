@@ -19,7 +19,7 @@ export const useVideos = (filters: FilterState): UseVideosReturn => {
   const [hasMore, setHasMore] = useState(true);
   
   // Use ref to store pagination state to avoid stale closures
-  const paginationRef = useRef<PaginationState>({ limit: 20, page: 1 });
+  const paginationRef = useRef<PaginationState>({ limit: 50, page: 1 });
   const filtersRef = useRef<FilterState>({ ...filters, platform: 'dailymotion' });
   
   // Create a stable filter object for the useEffect dependency array
@@ -27,7 +27,7 @@ export const useVideos = (filters: FilterState): UseVideosReturn => {
 
   // Reset pagination state for DailyMotion
   const resetPaginationState = useCallback(() => {
-    paginationRef.current = { limit: 20, page: 1 };
+    paginationRef.current = { limit: 50, page: 1 };
   }, []);
 
   // Function to fetch videos with pagination

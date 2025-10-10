@@ -5,7 +5,6 @@ import { useEnhancedFilters } from '../hooks/useEnhancedFilters';
 import { useVideos } from '../hooks/useVideos';
 import ErrorBoundary from './errors/ErrorBoundary';
 import LoadingSpinner from './LoadingSpinner';
-import YouTubeTest from './YouTubeTest';
 
 // Dynamically import the VideoGrid component for code splitting.
 const VideoGrid = React.lazy(() => import('./VideoGrid'));
@@ -39,6 +38,7 @@ const EnhancedApp: React.FC = () => {
   } = useEnhancedFilters(undefined, filterOptions);
 
   // Use videos hook with applied filters (not draft filters)
+  const [showFilters, setShowFilters] = React.useState(true);
   const { videos, loading, error, hasMore, loadMore, refresh } = useVideos(appliedFilters);
 
   // Enhanced logging for debugging
@@ -61,12 +61,19 @@ const EnhancedApp: React.FC = () => {
     <div className="bg-slate-900 text-white min-h-screen font-sans">
       <Header />
       <main className="container mx-auto px-4 py-6">
-        {/* YouTube API Test Component - Remove this after testing */}
-        <div className="mb-6">
-          <YouTubeTest />
+        {/* Filter Toggle */}
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded"
+          >
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
         
         {/* Enhanced Filter System */}
+        {showFilters && (
         <EnhancedFilterBar 
           filters={filters}
           appliedFilters={appliedFilters}
@@ -84,6 +91,7 @@ const EnhancedApp: React.FC = () => {
           getFilterSummary={getFilterSummary}
           filterPresets={filterPresets}
         />
+        )}
         
         {/* Filter Summary for Debugging (Remove in production) */}
         {process.env.NODE_ENV === 'development' && (

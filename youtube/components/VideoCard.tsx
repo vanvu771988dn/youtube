@@ -7,6 +7,7 @@ import RedditIcon from './icons/RedditIcon';
 
 interface VideoCardProps {
   video: Video;
+  mode: 'video' | 'channel';
 }
 
 const getPlatformIcon = (platform: Video['platform']) => {
@@ -18,10 +19,45 @@ const getPlatformIcon = (platform: Video['platform']) => {
   }
 };
 
-const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, mode }) => {
   const PlatformIcon = getPlatformIcon(video.platform);
   const [isImageLoaded, setImageLoaded] = useState(false);
+  const isChannelModeCard = mode === 'channel';
 
+  if (isChannelModeCard) {
+    const channelUrl = video.channelId ? `https://www.youtube.com/channel/${video.channelId}` : '#';
+    return (
+      <div className="bg-slate-800 rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300 ease-in-out flex flex-col">
+        <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="block relative h-40">
+          <div className={`w-full h-full bg-slate-700 absolute transition-opacity duration-300 ${isImageLoaded ? 'opacity-0' : 'opacity-100'}`}></div>
+          <img 
+              src={video.channelThumbnail || video.creatorAvatar} 
+              alt={video.creatorName} 
+              className={`w-full h-full object-cover absolute transition-opacity duration-500 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              loading="lazy"
+              onLoad={() => setImageLoaded(true)}
+          />
+        </a>
+        <div className="p-4 flex flex-col flex-grow">
+          <h3 className="text-md font-semibold text-white mb-2 leading-tight" title={video.creatorName}>
+            {video.creatorName}
+          </h3>
+          {video.channelDescription && (
+            <p className="text-xs text-slate-400 line-clamp-2 mb-3">{video.channelDescription}</p>
+          )}
+          <div className="mt-auto pt-3 border-t border-slate-700 text-xs text-slate-300 grid grid-cols-2 gap-3">
+            <div><span className="text-slate-400">Subscribers:</span> {formatCount(video.subscriberCount || 0)}</div>
+            <div><span className="text-slate-400">Total views:</span> {formatCount(video.channelViewCount || 0)}</div>
+            <div><span className="text-slate-400">Videos:</span> {formatCount(video.videoCount || 0)}</div>
+            <div><span className="text-slate-400">Avg length:</span> {video.avgVideoLength ? formatDuration(video.avgVideoLength) : '—'}</div>
+            <div className="col-span-2"><span className="text-slate-400">Last updated:</span> {video.lastUpdatedAt ? timeAgo(video.lastUpdatedAt) : (video.uploadDate ? timeAgo(video.uploadDate) : '—')}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Video mode card
   return (
     <div className="bg-slate-800 rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300 ease-in-out flex flex-col">
       <a href={video.url} target="_blank" rel="noopener noreferrer" className="block relative h-48">

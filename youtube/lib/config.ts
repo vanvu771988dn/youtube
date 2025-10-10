@@ -5,8 +5,8 @@
 
 export const config = {
   // API Keys
-  youtubeApiKey: process.env.YOUTUBE_API_KEY,
-  geminiApiKey: process.env.GEMINI_API_KEY,
+  youtubeApiKey: (typeof process !== 'undefined' && process.env?.YOUTUBE_API_KEY) || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_YOUTUBE_API_KEY : undefined),
+  geminiApiKey: (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_GEMINI_API_KEY : undefined),
   
   // API Configuration
   api: {
@@ -26,14 +26,14 @@ export const config = {
   
   // Application Settings
   app: {
-    defaultPageSize: 20,
+    defaultPageSize: 50,
     maxPageSize: 100,
     cacheTimeout: 5 * 60 * 1000, // 5 minutes
   },
   
   // Feature Flags
   features: {
-    useRealYouTubeData: !!(process.env.YOUTUBE_API_KEY && process.env.YOUTUBE_API_KEY.trim()),
+    useRealYouTubeData: true, // enable real data when API key is provided (validated below)
     enableCaching: true,
     enableRetry: true,
   }

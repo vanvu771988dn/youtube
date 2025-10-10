@@ -5,7 +5,6 @@ import { useFilters } from './hooks/useFilters';
 import { useTrends } from './hooks/useTrends';
 import ErrorBoundary from './components/errors/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
-import YouTubeTest from './components/YouTubeTest';
 
 const VideoGrid = React.lazy(() => import('./components/VideoGrid'));
 
@@ -21,18 +20,26 @@ const App: React.FC = () => {
     applyFilters 
   } = useFilters();
   
+  const [showFilters, setShowFilters] = React.useState(true);
+  
   const { videos, loading, error, hasMore, loadMore, refresh } = useTrends(appliedFilters);
 
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans">
       <Header />
       <main className="container mx-auto px-4 py-6">
-        {/* YouTube API Test Component - Remove this after testing */}
-        <div className="mb-6">
-          <YouTubeTest />
+        {/* Filter Toggle */}
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded"
+          >
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
-        
-        <FilterBar 
+        {showFilters && (
+          <FilterBar 
           filters={filters}
           appliedFilters={appliedFilters}
           onFilterChange={onFilterChange}
@@ -42,6 +49,7 @@ const App: React.FC = () => {
           onApplyPreset={onApplyPreset}
           applyFilters={applyFilters}
         />
+        )}
         
         <ErrorBoundary>
           <Suspense fallback={
@@ -56,6 +64,7 @@ const App: React.FC = () => {
               hasMore={hasMore}
               loadMore={loadMore}
               refresh={refresh}
+              mode={appliedFilters.mode}
             />
           </Suspense>
         </ErrorBoundary>

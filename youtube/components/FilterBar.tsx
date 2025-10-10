@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { FilterState, VideoFilters, ChannelFilters } from '../lib/types';
 import SearchBar from './SearchBar';
 import { 
@@ -8,7 +8,8 @@ import {
   MAX_VIDEO_COUNT,
   CHANNEL_AGE_OPTIONS,
   initialFilterState, 
-  filterPresets 
+  filterPresets,
+  COUNTRY_OPTIONS,
 } from '../hooks/useFilters';
 import { formatCount } from '../utils/formatters';
 import { dequal } from 'dequal';
@@ -44,32 +45,178 @@ const RangeSlider: React.FC<{
   step?: number; 
   label: string; 
 }> = ({ min, max, current, onChange, step = 1, label }) => {
-  const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Math.min(Number(e.target.value), current.max);
-    onChange({ min: value, max: current.max });
-  };
-  
-  const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Math.max(Number(e.target.value), current.min);
-    onChange({ min: current.min, max: value });
-  };
-  
+  const clamp = (val: number, low: number, high: number) => Math.min(Math.max(val, low), high);
+  const snap = (val: number) => (step > 0 ? Math.round(val / step) * step : val);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState<null | 'min' | 'max'>(null);
+
+  const [editingMin, setEditingMin] = useState(false);
+  const [editingMax, setEditingMax] = useState(false);
+  const [minDraft, setMinDraft] = useState<string>('');
+  const [maxDraft, setMaxDraft] = useState<string>('');
+
   const range = max - min;
-  const minPos = range > 0 ? ((current.min - min) / range) * 100 : 0;
-  const maxPos = range > 0 ? ((current.max - min) / range) * 100 : 100;
+  const toPct = useCallback((v: number) => (range > 0 ? ((v - min) / range) * 100 : 0), [range, min]);
+  const fromClientX = useCallback((clientX: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return min;
+    const pct = clamp((clientX - rect.left) / rect.width, 0, 1);
+    return min + pct * range;
+  }, [min, range]);
+
+  const minPos = toPct(current.min);
+  const maxPos = toPct(current.max);
+
+  const startEditMin = () => { setMinDraft(String(current.min)); setEditingMin(true); };
+  const startEditMax = () => { setMaxDraft(String(current.max)); setEditingMax(true); };
+
+  const commitMin = () => {
+    const raw = Number(minDraft);
+    if (!Number.isNaN(raw)) {
+      const value = snap(clamp(raw, min, current.max));
+      onChange({ min: value, max: current.max });
+    }
+    setEditingMin(false);
+  };
+  const commitMax = () => {
+    const raw = Number(maxDraft);
+    if (!Number.isNaN(raw)) {
+      const value = snap(clamp(raw, current.min, max));
+      onChange({ min: current.min, max: value });
+    }
+    setEditingMax(false);
+  };
+
+  const handleMinKey: React.KeyboardEventHandler<HTMLButtonElement> = (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      const value = snap(clamp(current.min - step, min, current.max));
+      onChange({ min: value, max: current.max });
+      e.preventDefault();
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      const value = snap(clamp(current.min + step, min, current.max));
+      onChange({ min: value, max: current.max });
+      e.preventDefault();
+    }
+  };
+  const handleMaxKey: React.KeyboardEventHandler<HTMLButtonElement> = (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      const value = snap(clamp(current.max - step, current.min, max));
+      onChange({ min: current.min, max: value });
+      e.preventDefault();
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      const value = snap(clamp(current.max + step, current.min, max));
+      onChange({ min: current.min, max: value });
+      e.preventDefault();
+    }
+  };
+
+  const onPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
+    const valueAtPointer = fromClientX(e.clientX);
+    // choose nearest handle
+    const distToMin = Math.abs(valueAtPointer - current.min);
+    const distToMax = Math.abs(valueAtPointer - current.max);
+    const handle: 'min' | 'max' = distToMin <= distToMax ? 'min' : 'max';
+    setDragging(handle);
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    if (handle === 'min') {
+      const value = snap(clamp(valueAtPointer, min, current.max));
+      onChange({ min: value, max: current.max });
+    } else {
+      const value = snap(clamp(valueAtPointer, current.min, max));
+      onChange({ min: current.min, max: value });
+    }
+  };
+
+  const onPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
+    if (!dragging) return;
+    const valueAtPointer = fromClientX(e.clientX);
+    if (dragging === 'min') {
+      const value = snap(clamp(valueAtPointer, min, current.max));
+      onChange({ min: value, max: current.max });
+    } else {
+      const value = snap(clamp(valueAtPointer, current.min, max));
+      onChange({ min: current.min, max: value });
+    }
+  };
+  const onPointerUp: React.PointerEventHandler<HTMLDivElement> = (e) => {
+    setDragging(null);
+    try { (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId); } catch {}
+  };
 
   return (
     <div>
       <label className="block text-sm font-medium mb-2">{label}</label>
-      <div className="flex justify-between text-xs text-slate-400 mb-2">
-        <span>{formatCount(current.min)}</span>
-        <span>{formatCount(current.max)}</span>
-      </div>
-      <div className="relative h-2">
-        <div className="absolute bg-slate-600 h-1 w-full rounded-full top-1/2 -translate-y-1/2"></div>
-        <div className="absolute bg-cyan-500 h-1 rounded-full top-1/2 -translate-y-1/2" style={{ left: `${minPos}%`, right: `${100 - maxPos}%` }}></div>
-        <input type="range" min={min} max={max} value={current.min} step={step} onChange={handleMinChange} className="absolute w-full h-2 opacity-0 cursor-pointer" />
-        <input type="range" min={min} max={max} value={current.max} step={step} onChange={handleMaxChange} className="absolute w-full h-2 opacity-0 cursor-pointer" />
+
+      <div
+        ref={containerRef}
+        className="relative h-10 select-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {/* Track */}
+        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-slate-600 rounded-full"></div>
+        {/* Active range */}
+        <div className="absolute top-1/2 -translate-y-1/2 h-1 bg-cyan-500 rounded-full" style={{ left: `${minPos}%`, right: `${100 - maxPos}%` }}></div>
+
+        {/* Visible handles (keyboard accessible) */}
+        <button
+          type="button"
+          aria-label={`${label} minimum`}
+          onKeyDown={handleMinKey}
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-4 w-4 rounded-full bg-white border-2 border-cyan-600 shadow focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          style={{ left: `${minPos}%` }}
+        />
+        <button
+          type="button"
+          aria-label={`${label} maximum`}
+          onKeyDown={handleMaxKey}
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-4 w-4 rounded-full bg-white border-2 border-cyan-600 shadow focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          style={{ left: `${maxPos}%` }}
+        />
+
+        {/* Value bubbles (click to edit) */}
+        <div className="absolute -top-8 -translate-x-1/2" style={{ left: `${minPos}%` }}>
+          {editingMin ? (
+            <input
+              autoFocus
+              type="number"
+              min={min}
+              max={current.max}
+              step={step}
+              value={minDraft}
+              onChange={(e) => setMinDraft(e.target.value)}
+              onBlur={commitMin}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitMin(); if (e.key === 'Escape') setEditingMin(false); }}
+              className="w-20 text-center bg-cyan-600 text-white rounded px-2 py-1 text-xs shadow focus:outline-none"
+            />
+          ) : (
+            <button type="button" onClick={startEditMin} className="bg-cyan-600 text-white rounded px-2 py-1 text-xs shadow hover:bg-cyan-500">
+              {formatCount(current.min)}
+            </button>
+          )}
+        </div>
+        <div className="absolute -top-8 -translate-x-1/2" style={{ left: `${maxPos}%` }}>
+          {editingMax ? (
+            <input
+              autoFocus
+              type="number"
+              min={current.min}
+              max={max}
+              step={step}
+              value={maxDraft}
+              onChange={(e) => setMaxDraft(e.target.value)}
+              onBlur={commitMax}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitMax(); if (e.key === 'Escape') setEditingMax(false); }}
+              className="w-20 text-center bg-cyan-600 text-white rounded px-2 py-1 text-xs shadow focus:outline-none"
+            />
+          ) : (
+            <button type="button" onClick={startEditMax} className="bg-cyan-600 text-white rounded px-2 py-1 text-xs shadow hover:bg-cyan-500">
+              {formatCount(current.max)}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -175,6 +322,17 @@ const ChannelFiltersComponent: React.FC<{
       />
     </div>
 
+    <div className="md:col-span-2">
+      <RangeSlider 
+        label="Avg Video Length (sec)" 
+        min={0} 
+        max={7200} 
+        step={30} 
+        current={filters.avgVideoLength} 
+        onChange={(val) => onFilterChange('avgVideoLength', val)} 
+      />
+    </div>
+
     <div>
       <label className="block text-sm font-medium mb-1">Channel Age</label>
       <select 
@@ -276,6 +434,8 @@ const FilterControls: React.FC<{
         >
           <option value="all">All Platforms</option>
           <option value="youtube">YouTube</option>
+          <option value="dailymotion">Dailymotion</option>
+          <option value="reddit">Reddit</option>
           <option value="tiktok">TikTok</option>
         </select>
       </div>
@@ -291,6 +451,66 @@ const FilterControls: React.FC<{
           <option value="views">Most Views</option>
           <option value="date">Newest</option>
           {filters.mode === 'channel' && <option value="subscribers">Most Subscribers</option>}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Country</label>
+        <select
+          value={filters.country}
+          onChange={(e) => onFilterChange('country', e.target.value as any)}
+          className={commonSelectClasses}
+        >
+          <option value="ALL">All</option>
+          {COUNTRY_OPTIONS.map(opt => (
+            <option key={opt.code} value={opt.code}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Language</label>
+        <select
+          value={filters.language}
+          onChange={(e) => onFilterChange('language', e.target.value as any)}
+          className={commonSelectClasses}
+        >
+          <option value="ALL">All</option>
+          <option value="en">English</option>
+          <option value="vi">Vietnamese</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="hi">Hindi</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="ru">Russian</option>
+          <option value="id">Indonesian</option>
+        </select>
+      </div>
+
+      {/* YouTube Category (only when YouTube or All) */}
+      <div>
+        <label className="block text-sm font-medium mb-1">YouTube Category</label>
+        <select
+          value={filters.category || '0'}
+          onChange={(e) => onFilterChange('category', e.target.value as any)}
+          className={commonSelectClasses}
+        >
+          <option value="0">All Categories</option>
+          <option value="1">Film & Animation</option>
+          <option value="2">Autos & Vehicles</option>
+          <option value="10">Music</option>
+          <option value="15">Pets & Animals</option>
+          <option value="17">Sports</option>
+          <option value="20">Gaming</option>
+          <option value="22">People & Blogs</option>
+          <option value="23">Comedy</option>
+          <option value="24">Entertainment</option>
+          <option value="25">News & Politics</option>
+          <option value="26">Howto & Style</option>
+          <option value="27">Education</option>
+          <option value="28">Science & Technology</option>
         </select>
       </div>
 
