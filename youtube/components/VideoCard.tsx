@@ -4,6 +4,8 @@ import { formatCount, formatDuration, timeAgo } from '../utils/formatters';
 import YouTubeIcon from './icons/YouTubeIcon';
 import DailymotionIcon from './icons/DailymotionIcon';
 import RedditIcon from './icons/RedditIcon';
+import BookmarkIcon from './icons/BookmarkIcon';
+import { isBookmarked, toggleBookmark } from '../lib/bookmarks';
 
 interface VideoCardProps {
   video: Video;
@@ -17,6 +19,36 @@ const getPlatformIcon = (platform: Video['platform']) => {
     case 'reddit': return RedditIcon;
     default: return YouTubeIcon;
   }
+};
+
+const BookmarkButtonOverlay: React.FC<{ video: Video }> = ({ video }) => {
+  const [bookmarked, setBookmarked] = useState<boolean>(() => isBookmarked(video.id, video.platform));
+  const onToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = toggleBookmark({
+      id: video.id,
+      platform: video.platform,
+      title: video.title,
+      thumbnail: video.thumbnail,
+      url: video.url,
+      creatorName: video.creatorName,
+      creatorAvatar: video.creatorAvatar,
+      uploadDate: video.uploadDate,
+    });
+    setBookmarked(next);
+  };
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
+      title={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
+      className={`absolute top-2 right-2 rounded-full p-1.5 transition ${bookmarked ? 'bg-yellow-400 text-black' : 'bg-black bg-opacity-75 text-white hover:bg-opacity-90'}`}
+    >
+      <BookmarkIcon filled={bookmarked} className="h-5 w-5" />
+    </button>
+  );
 };
 
 const VideoCard: React.FC<VideoCardProps> = ({ video, mode }) => {
@@ -76,6 +108,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode }) => {
         <div className="absolute top-2 left-2 bg-black bg-opacity-75 p-1.5 rounded-full">
             <PlatformIcon className="h-5 w-5 text-white" />
         </div>
+        {/* Bookmark button */}
+        <BookmarkButtonOverlay video={video} />
       </a>
       
       <div className="p-4 flex flex-col flex-grow">
