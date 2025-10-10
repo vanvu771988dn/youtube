@@ -81,7 +81,7 @@ export const useTrends = (filters: FilterState): UseTrendsReturn => {
       const response: ApiResponse = await fetchTrends({ 
         ...currentFilters, 
         page: currentPage, 
-        limit: 50 
+        limit: ((currentFilters as any).limit ?? 50) 
       } as any);
       
       if (response.success) {

@@ -130,9 +130,17 @@ const EnhancedApp: React.FC = () => {
               hasMore={hasMore}
               loadMore={loadMore}
               refresh={refresh}
-              // Pass additional props for enhanced functionality
-              isFiltered={isFiltered}
-              appliedFilters={appliedFilters}
+              mode={appliedFilters.mode}
+              onSimilarChannel={(name) => {
+                applyFilters({
+                  ...(appliedFilters as any),
+                  mode: 'channel',
+                  sortBy: 'views',
+                  keywords: name,
+                  page: 1,
+                  limit: 20,
+                } as any);
+              }}
             />
           </Suspense>
         </ErrorBoundary>

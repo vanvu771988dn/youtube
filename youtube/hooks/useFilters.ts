@@ -63,6 +63,7 @@ export const initialFilterState: FilterState = {
     monetizationEnabled: 'all',
     monetizationAge: 'all',
     avgVideoLength: { min: 0, max: 7200 },
+    createdDate: { start: null, end: null },
   },
 };
 

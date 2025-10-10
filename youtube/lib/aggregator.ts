@@ -31,18 +31,115 @@ export const fetchYouTubePage = async (
     let pageNextToken: string | undefined;
 
     if (filters.keywords && filters.keywords.trim()) {
-      const publishedAfter = getPublishedAfterDate(filters.videoFilters.uploadDate, filters.videoFilters.customDate);
+      let publishedAfter: string | undefined;
+      try {
+        publishedAfter = getPublishedAfterDate(filters.videoFilters.uploadDate, filters.videoFilters.customDate);
+        // Additional validation
+        if (publishedAfter) {
+          const testDate = new Date(publishedAfter);
+          if (isNaN(testDate.getTime()) || !publishedAfter.endsWith('Z')) {
+            console.warn('Invalid publishedAfter date, skipping:', publishedAfter);
+            publishedAfter = undefined;
+          }
+        }
+      } catch (error) {
+        console.error('Error generating publishedAfter date:', error);
+        publishedAfter = undefined;
+      }
+      
       const order = getYouTubeSortOrder(filters.sortBy);
-      const { videos, nextPageToken } = await youtubeService.searchVideos(
-        filters.keywords,
-        50,
-        order,
-        publishedAfter,
-        nextToken,
-        filters.language !== 'ALL' ? filters.language : undefined
-      );
-      pageVideos = videos;
-      pageNextToken = nextPageToken;
+      const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
+
+      if (terms.length > 1) {
+        // Enhanced multi-keyword search strategy
+        const searchStrategies = [];
+        
+        // Strategy 1: Search individual terms (parallel)
+        const individualBatches = await Promise.all(terms.slice(0, 5).map(term => 
+          youtubeService!.searchVideos(
+            term,
+            Math.min(30, Math.floor(150 / terms.length)), // Distribute API quota
+            order,
+            publishedAfter,
+            undefined,
+            filters.language !== 'ALL' ? filters.language : undefined
+          ).catch(error => {
+            console.warn(`Search failed for term "${term}":`, error);
+            return { videos: [], nextPageToken: undefined };
+          })
+        ));
+        
+        // Strategy 2: Search combined terms (for better relevance)
+        let combinedResults = { videos: [] as Video[], nextPageToken: undefined };
+        if (terms.length <= 4) {
+          try {
+            combinedResults = await youtubeService!.searchVideos(
+              terms.join(' '), // Combine all terms
+              50,
+              order,
+              publishedAfter,
+              undefined,
+              filters.language !== 'ALL' ? filters.language : undefined
+            );
+          } catch (error) {
+            console.warn('Combined search failed:', error);
+          }
+        }
+
+        // Strategy 3: Search term pairs (for 3+ keywords)
+        let pairResults: Video[] = [];
+        if (terms.length >= 3 && terms.length <= 6) {
+          const pairs = [];
+          for (let i = 0; i < Math.min(terms.length - 1, 3); i++) {
+            for (let j = i + 1; j < Math.min(terms.length, i + 3); j++) {
+              pairs.push(`${terms[i]} ${terms[j]}`);
+            }
+          }
+          
+          const pairBatches = await Promise.all(pairs.slice(0, 3).map(pair =>
+            youtubeService!.searchVideos(
+              pair,
+              20,
+              order,
+              publishedAfter,
+              undefined,
+              filters.language !== 'ALL' ? filters.language : undefined
+            ).catch(() => ({ videos: [], nextPageToken: undefined }))
+          ));
+          pairResults = pairBatches.flatMap(b => b.videos);
+        }
+
+        // Combine and score results
+        const allResults = [
+          ...combinedResults.videos.map(v => ({ ...v, _searchScore: 10 })), // Highest priority for combined search
+          ...individualBatches.flatMap(b => b.videos.map(v => ({ ...v, _searchScore: 5 }))), // Medium priority
+          ...pairResults.map(v => ({ ...v, _searchScore: 7 })) // High priority for pair matches
+        ];
+
+        // Remove duplicates and sort by relevance
+        const seen = new Set();
+        pageVideos = allResults
+          .filter(video => {
+            if (seen.has(video.id)) return false;
+            seen.add(video.id);
+            return true;
+          })
+          .sort((a, b) => ((b as any)._searchScore || 0) - ((a as any)._searchScore || 0))
+          .map(({ _searchScore, ...video }) => video); // Remove score property
+
+        pageNextToken = undefined; // No pagination for multi-term searches
+      } else {
+        const { videos, nextPageToken } = await youtubeService.searchVideos(
+          filters.keywords,
+          50,
+          order,
+          publishedAfter,
+          nextToken,
+          filters.language !== 'ALL' ? filters.language : undefined
+        );
+        pageVideos = videos;
+        pageNextToken = nextPageToken;
+      }
     } else {
       const { videos, nextPageToken } = await youtubeService.getTrendingVideos(
         50,
@@ -147,6 +244,20 @@ export const fetchYouTubePage = async (
     const avgRange = filters.channelFilters.avgVideoLength;
     if (avgRange && (avgRange.min > 0 || avgRange.max < Infinity)) {
       aggregated = aggregated.filter(v => (v.avgVideoLength || 0) >= avgRange.min && (v.avgVideoLength || 0) <= avgRange.max);
+    }
+
+    // Filter by channel created date range if provided
+    const created = (filters.channelFilters as any).createdDate;
+    if (created && (created.start || created.end)) {
+      const start = created.start ? new Date(created.start) : null;
+      const end = created.end ? new Date(created.end) : null;
+      aggregated = aggregated.filter(v => {
+        if (!v.channelCreatedAt) return false;
+        const d = new Date(v.channelCreatedAt);
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
     }
 
     pool = aggregated;

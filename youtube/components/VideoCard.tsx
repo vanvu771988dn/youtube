@@ -6,10 +6,12 @@ import DailymotionIcon from './icons/DailymotionIcon';
 import RedditIcon from './icons/RedditIcon';
 import BookmarkIcon from './icons/BookmarkIcon';
 import { isBookmarked, toggleBookmark } from '../lib/bookmarks';
+import { isChannelTracked, toggleTrackChannel } from '../lib/trackedChannels';
 
 interface VideoCardProps {
   video: Video;
   mode: 'video' | 'channel';
+  onSimilarChannel?: (name: string) => void;
 }
 
 const getPlatformIcon = (platform: Video['platform']) => {
@@ -51,7 +53,33 @@ const BookmarkButtonOverlay: React.FC<{ video: Video }> = ({ video }) => {
   );
 };
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, mode }) => {
+const TrackChannelButton: React.FC<{ video: Video }> = ({ video }) => {
+  const [tracked, setTracked] = useState<boolean>(() => isChannelTracked(video.channelId, video.creatorName));
+  const onToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = toggleTrackChannel({
+      channelId: video.channelId,
+      creatorName: video.creatorName,
+      creatorAvatar: video.creatorAvatar,
+      channelThumbnail: video.channelThumbnail,
+      channelCreatedAt: video.channelCreatedAt,
+    });
+    setTracked(next);
+  };
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`text-xs px-2 py-1 rounded ${tracked ? 'bg-green-500 text-black' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+      title={tracked ? 'Untrack channel' : 'Track channel'}
+    >
+      {tracked ? 'Tracked' : 'Track'}
+    </button>
+  );
+};
+
+const VideoCard: React.FC<VideoCardProps> = ({ video, mode, onSimilarChannel }) => {
   const PlatformIcon = getPlatformIcon(video.platform);
   const [isImageLoaded, setImageLoaded] = useState(false);
   const isChannelModeCard = mode === 'channel';
@@ -74,6 +102,17 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode }) => {
           <h3 className="text-md font-semibold text-white mb-2 leading-tight" title={video.creatorName}>
             {video.creatorName}
           </h3>
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onSimilarChannel && onSimilarChannel(video.creatorName); }}
+              className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded"
+              title="Search similar channels"
+            >
+              Similar
+            </button>
+            <TrackChannelButton video={video} />
+          </div>
           {video.channelDescription && (
             <p className="text-xs text-slate-400 line-clamp-2 mb-3">{video.channelDescription}</p>
           )}

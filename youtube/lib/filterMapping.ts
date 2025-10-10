@@ -15,32 +15,61 @@ export const buildYouTubeQueryKey = (filters: ApiFilterParams): string => {
   return JSON.stringify(keyObj);
 };
 
+/**
+ * Ensures a date string is in proper ISO format for YouTube API
+ * YouTube API requires timestamps to end with 'Z' or have a valid timezone offset
+ */
+const ensureValidTimestamp = (dateStr: string): string => {
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date');
+    }
+    // Always return in UTC format with 'Z' suffix
+    return date.toISOString();
+  } catch (error) {
+    console.warn('Invalid date format, using current time:', dateStr);
+    return new Date().toISOString();
+  }
+};
+
 export const getPublishedAfterDate = (
   uploadDate: string,
   customDate?: { start: string | null; end: string | null }
 ): string | undefined => {
-  if (uploadDate === 'custom' && customDate?.start) return customDate.start;
-  const now = new Date();
-  switch (uploadDate) {
-    case 'today': {
-      const today = new Date(now);
-      today.setHours(0, 0, 0, 0);
-      return today.toISOString();
+  try {
+    if (uploadDate === 'custom' && customDate?.start) {
+      return ensureValidTimestamp(customDate.start);
     }
-    case '24h':
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    case '7d':
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    case '30d':
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    case '3m':
-      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
-    case '6m':
-      return new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
-    case '1y':
-      return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
-    default:
-      return undefined;
+    
+    const now = new Date();
+    
+    switch (uploadDate) {
+      case 'today': {
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        return today.toISOString();
+      }
+      case '24h':
+        return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      case '7d':
+        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      case '30d':
+        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      case '3m':
+        return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      case '6m':
+        return new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+      case '1y':
+        return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      case 'all':
+      default:
+        return undefined;
+    }
+  } catch (error) {
+    console.warn('Error generating publishedAfter date, skipping filter:', error);
+    // Return undefined to skip the date filter entirely if there's any error
+    return undefined;
   }
 };
 

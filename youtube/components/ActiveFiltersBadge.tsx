@@ -2,14 +2,25 @@ import React from 'react';
 import { FilterState } from '../lib/types';
 import { initialFilterState } from '../hooks/useFilters';
 import { dequal } from 'dequal';
+import { parseKeywords, removeKeyword, formatKeywords } from '../utils/keywordUtils';
+import KeywordTag from './KeywordTag';
 
 interface ActiveFiltersBadgeProps {
   filters: FilterState;
   onRemoveFilter: (filterPath: string) => void;
+  onKeywordsChange?: (keywords: string) => void;
 }
 
-const ActiveFiltersBadge: React.FC<ActiveFiltersBadgeProps> = ({ filters, onRemoveFilter }) => {
+const ActiveFiltersBadge: React.FC<ActiveFiltersBadgeProps> = ({ filters, onRemoveFilter, onKeywordsChange }) => {
   const activeFilters: Array<{ label: string; path: string }> = [];
+  const parsedKeywords = parseKeywords(filters.keywords || '');
+
+  const handleRemoveKeyword = (keywordId: string) => {
+    if (!onKeywordsChange) return;
+    const updatedKeywords = removeKeyword(parsedKeywords, keywordId);
+    const newKeywordString = formatKeywords(updatedKeywords);
+    onKeywordsChange(newKeywordString);
+  };
 
   // Check mode
   if (filters.mode !== initialFilterState.mode) {
@@ -27,13 +38,7 @@ const ActiveFiltersBadge: React.FC<ActiveFiltersBadgeProps> = ({ filters, onRemo
     });
   }
 
-  // Check search
-  if (filters.keywords) {
-    activeFilters.push({
-      label: `Search: "${filters.keywords}"`,
-      path: 'keywords'
-    });
-  }
+  // Keywords are handled separately as individual tags
 
   // Check sort
   if (filters.sortBy !== 'trending') {
@@ -120,14 +125,29 @@ const ActiveFiltersBadge: React.FC<ActiveFiltersBadgeProps> = ({ filters, onRemo
     }
   }
 
-  if (activeFilters.length === 0) {
+  if (activeFilters.length === 0 && parsedKeywords.length === 0) {
     return null;
   }
 
   return (
     <div className="mb-4 p-3 bg-slate-800/30 rounded-lg border border-slate-700">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm font-medium text-slate-400">Active Filters:</span>
+        <span className="text-sm font-medium text-slate-400">
+          {(activeFilters.length > 0 || parsedKeywords.length > 0) && 'Active Filters:'}
+        </span>
+        
+        {/* Individual keyword tags */}
+        {parsedKeywords.map((keyword) => (
+          <KeywordTag
+            key={keyword.id}
+            keyword={keyword}
+            onRemove={onKeywordsChange ? handleRemoveKeyword : undefined}
+            variant="filter"
+            size="sm"
+          />
+        ))}
+        
+        {/* Other filter badges */}
         {activeFilters.map((filter, index) => (
           <span
             key={index}

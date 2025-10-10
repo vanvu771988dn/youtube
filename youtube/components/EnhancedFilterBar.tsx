@@ -216,7 +216,16 @@ const FilterControls: React.FC<{
         )}
       </div>
 
+      {/* Channel Created Date Range */}
       <div className="space-y-1">
+        <label className="block text-sm font-medium mb-1">Channel Created</label>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="date" value={(filters.channelFilters as any).createdDate?.start || ''} onChange={(e)=> onFilterChange('channelFilters' as any, { ...filters.channelFilters, createdDate: { ...filters.channelFilters.createdDate, start: e.target.value || null } } as any)} className={commonSelectClasses} />
+          <input type="date" value={(filters.channelFilters as any).createdDate?.end || ''} onChange={(e)=> onFilterChange('channelFilters' as any, { ...filters.channelFilters, createdDate: { ...filters.channelFilters.createdDate, end: e.target.value || null } } as any)} className={commonSelectClasses} />
+        </div>
+      </div>
+
+      <div className="lg:col-span-4 space-y-1">
         <label className="block text-sm font-medium mb-1">Upload Date</label>
         <select 
           value={filters.uploadDate} 

@@ -66,6 +66,7 @@ export interface ChannelFilters {
   monetizationEnabled: 'all' | 'yes' | 'no';
   monetizationAge: ChannelAgeOption; // Time since monetization started
   avgVideoLength: Range; // in seconds
+  createdDate?: CustomDateRange; // Channel created date range
 }
 
 // Main filter state with mode

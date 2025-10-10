@@ -244,7 +244,14 @@ const VideoFiltersComponent: React.FC<{
         <option value="3m">Last 3 Months</option>
         <option value="6m">Last 6 Months</option>
         <option value="1y">Last Year</option>
+        <option value="custom">Custom Range</option>
       </select>
+      {filters.uploadDate === 'custom' && (
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <input type="date" value={filters.customDate.start || ''} onChange={(e)=>onFilterChange('customDate', { ...filters.customDate, start: e.target.value || null } as any)} className={commonSelectClasses} />
+          <input type="date" value={filters.customDate.end || ''} onChange={(e)=>onFilterChange('customDate', { ...filters.customDate, end: e.target.value || null } as any)} className={commonSelectClasses} />
+        </div>
+      )}
     </div>
 
     <div className="pt-4 self-end">
@@ -331,6 +338,14 @@ const ChannelFiltersComponent: React.FC<{
         current={filters.avgVideoLength} 
         onChange={(val) => onFilterChange('avgVideoLength', val)} 
       />
+    </div>
+
+    <div className="md:col-span-2">
+      <label className="block text-sm font-medium mb-1">Channel Created (Range)</label>
+      <div className="grid grid-cols-2 gap-2 mt-1">
+        <input type="date" value={filters.createdDate?.start || ''} onChange={(e)=>onFilterChange('createdDate', { ...(filters.createdDate || { start:null, end:null }), start: e.target.value || null } as any)} className={commonSelectClasses} />
+        <input type="date" value={filters.createdDate?.end || ''} onChange={(e)=>onFilterChange('createdDate', { ...(filters.createdDate || { start:null, end:null }), end: e.target.value || null } as any)} className={commonSelectClasses} />
+      </div>
     </div>
 
     <div>

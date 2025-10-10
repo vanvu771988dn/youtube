@@ -268,7 +268,18 @@ class YouTubeService {
       });
 
       if (publishedAfter) {
-        searchParams.append('publishedAfter', publishedAfter);
+        // Validate the timestamp format before sending
+        try {
+          const date = new Date(publishedAfter);
+          if (isNaN(date.getTime())) {
+            throw new Error('Invalid date');
+          }
+          const formattedTimestamp = date.toISOString();
+          searchParams.append('publishedAfter', formattedTimestamp);
+        } catch (error) {
+          console.warn('Invalid publishedAfter timestamp, skipping filter:', publishedAfter, error);
+          // Skip the publishedAfter parameter if it's invalid
+        }
       }
       if (pageToken) {
         searchParams.append('pageToken', pageToken);

@@ -15,9 +15,10 @@ interface VideoGridProps {
   loadMore: () => void;
   refresh: () => void;
   mode: 'video' | 'channel';
+  onSimilarChannel?: (name: string) => void;
 }
 
-const VideoGrid: React.FC<VideoGridProps> = ({ videos, loading, error, hasMore, loadMore, refresh, mode }) => {
+const VideoGrid: React.FC<VideoGridProps> = ({ videos, loading, error, hasMore, loadMore, refresh, mode, onSimilarChannel }) => {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(loadMore);
 
@@ -90,7 +91,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ videos, loading, error, hasMore, 
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
         {videos.map((video, index) => (
-          <VideoCard key={`${video.platform}-${video.id}-${index}`} video={video} mode={mode} />
+          <VideoCard key={`${video.platform}-${video.id}-${index}`} video={video} mode={mode} onSimilarChannel={onSimilarChannel} />
         ))}
       </div>
 

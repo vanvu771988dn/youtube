@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
+import ActiveFiltersBadge from './components/ActiveFiltersBadge';
 import { useFilters } from './hooks/useFilters';
 import { useTrends } from './hooks/useTrends';
 import ErrorBoundary from './components/errors/ErrorBoundary';
@@ -23,6 +24,33 @@ const App: React.FC = () => {
   const [showFilters, setShowFilters] = React.useState(true);
   
   const { videos, loading, error, hasMore, loadMore, refresh } = useTrends(appliedFilters);
+
+  // Handle removing individual filters
+  const handleRemoveFilter = (filterPath: string) => {
+    if (filterPath === 'keywords') {
+      onFilterChange('keywords', '');
+    } else if (filterPath === 'mode') {
+      onFilterChange('mode', 'video');
+    } else if (filterPath === 'platform') {
+      onFilterChange('platform', 'all');
+    } else if (filterPath === 'sortBy') {
+      onFilterChange('sortBy', 'trending');
+    } else if (filterPath.startsWith('videoFilters.')) {
+      const key = filterPath.split('.')[1] as keyof typeof appliedFilters.videoFilters;
+      if (key === 'uploadDate') onVideoFilterChange('uploadDate', 'all');
+      else if (key === 'duration') onVideoFilterChange('duration', []);
+      else if (key === 'trending24h') onVideoFilterChange('trending24h', false);
+      else if (key === 'viewCount') onVideoFilterChange('viewCount', { min: 0, max: 20_000_000 });
+    } else if (filterPath.startsWith('channelFilters.')) {
+      const key = filterPath.split('.')[1] as keyof typeof appliedFilters.channelFilters;
+      if (key === 'subscriberCount') onChannelFilterChange('subscriberCount', { min: 0, max: 10_000_000 });
+      else if (key === 'videoCount') onChannelFilterChange('videoCount', { min: 0, max: 1_000_000 });
+      else if (key === 'channelAge') onChannelFilterChange('channelAge', 'all');
+      else if (key === 'monetizationEnabled') onChannelFilterChange('monetizationEnabled', 'all');
+      else if (key === 'monetizationAge') onChannelFilterChange('monetizationAge', 'all');
+    }
+    applyFilters();
+  };
 
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans">
@@ -51,6 +79,16 @@ const App: React.FC = () => {
         />
         )}
         
+        {/* Active Filters Badge */}
+        <ActiveFiltersBadge
+          filters={appliedFilters}
+          onRemoveFilter={handleRemoveFilter}
+          onKeywordsChange={(keywords) => {
+            onFilterChange('keywords', keywords);
+            applyFilters();
+          }}
+        />
+        
         <ErrorBoundary>
           <Suspense fallback={
             <div className="py-16">
@@ -65,6 +103,13 @@ const App: React.FC = () => {
               loadMore={loadMore}
               refresh={refresh}
               mode={appliedFilters.mode}
+              onSimilarChannel={(name) => {
+                onFilterChange('mode', 'channel');
+                onFilterChange('sortBy', 'views');
+                onFilterChange('keywords', name);
+                // optional: page reset logic handled by hook
+                applyFilters();
+              }}
             />
           </Suspense>
         </ErrorBoundary>
