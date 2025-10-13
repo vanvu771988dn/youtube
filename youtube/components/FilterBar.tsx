@@ -300,94 +300,6 @@ const VideoFiltersComponent: React.FC<{
   </>
 );
 
-// Channel Mode Filters
-const ChannelFiltersComponent: React.FC<{
-  filters: ChannelFilters;
-  onFilterChange: <K extends keyof ChannelFilters>(key: K, value: ChannelFilters[K]) => void;
-  commonSelectClasses: string;
-}> = ({ filters, onFilterChange, commonSelectClasses }) => (
-  <>
-    <div className="md:col-span-2">
-      <RangeSlider 
-        label="Subscriber Count" 
-        min={0} 
-        max={MAX_SUBSCRIBERS} 
-        step={50000} 
-        current={filters.subscriberCount} 
-        onChange={(val) => onFilterChange('subscriberCount', val)} 
-      />
-    </div>
-
-    <div className="md:col-span-2">
-      <RangeSlider 
-        label="Number of Videos" 
-        min={0} 
-        max={MAX_VIDEO_COUNT} 
-        step={100} 
-        current={filters.videoCount} 
-        onChange={(val) => onFilterChange('videoCount', val)} 
-      />
-    </div>
-
-    <div className="md:col-span-2">
-      <RangeSlider 
-        label="Avg Video Length (sec)" 
-        min={0} 
-        max={7200} 
-        step={30} 
-        current={filters.avgVideoLength} 
-        onChange={(val) => onFilterChange('avgVideoLength', val)} 
-      />
-    </div>
-
-    <div className="md:col-span-2">
-      <label className="block text-sm font-medium mb-1">Channel Created (Range)</label>
-      <div className="grid grid-cols-2 gap-2 mt-1">
-        <input type="date" value={filters.createdDate?.start || ''} onChange={(e)=>onFilterChange('createdDate', { ...(filters.createdDate || { start:null, end:null }), start: e.target.value || null } as any)} className={commonSelectClasses} />
-        <input type="date" value={filters.createdDate?.end || ''} onChange={(e)=>onFilterChange('createdDate', { ...(filters.createdDate || { start:null, end:null }), end: e.target.value || null } as any)} className={commonSelectClasses} />
-      </div>
-    </div>
-
-    <div>
-      <label className="block text-sm font-medium mb-1">Channel Age</label>
-      <select 
-        value={filters.channelAge} 
-        onChange={(e) => onFilterChange('channelAge', e.target.value as any)}
-        className={commonSelectClasses}
-      >
-        {CHANNEL_AGE_OPTIONS.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-
-    <div>
-      <label className="block text-sm font-medium mb-1">Monetization</label>
-      <select 
-        value={filters.monetizationEnabled} 
-        onChange={(e) => onFilterChange('monetizationEnabled', e.target.value as any)}
-        className={commonSelectClasses}
-      >
-        <option value="all">All Channels</option>
-        <option value="yes">Monetized Only</option>
-        <option value="no">Not Monetized</option>
-      </select>
-    </div>
-
-    <div>
-      <label className="block text-sm font-medium mb-1">Monetized Since</label>
-      <select 
-        value={filters.monetizationAge} 
-        onChange={(e) => onFilterChange('monetizationAge', e.target.value as any)}
-        className={commonSelectClasses}
-      >
-        {CHANNEL_AGE_OPTIONS.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  </>
-);
 
 // Main Filter Controls
 const FilterControls: React.FC<{ 
@@ -398,37 +310,6 @@ const FilterControls: React.FC<{
   commonSelectClasses: string;
 }> = ({ filters, onFilterChange, onVideoFilterChange, onChannelFilterChange, commonSelectClasses }) => (
   <div className="space-y-4">
-    {/* Mode Tabs */}
-    <div className="flex gap-2 p-1 bg-slate-700/50 rounded-lg">
-      <button
-        type="button"
-        onClick={() => onFilterChange('mode', 'video')}
-        className={`flex-1 py-2 px-4 rounded-md font-medium transition ${
-          filters.mode === 'video'
-            ? 'bg-cyan-500 text-white'
-            : 'text-slate-300 hover:text-white'
-        }`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-        </svg>
-        Filter by Video
-      </button>
-      <button
-        type="button"
-        onClick={() => onFilterChange('mode', 'channel')}
-        className={`flex-1 py-2 px-4 rounded-md font-medium transition ${
-          filters.mode === 'channel'
-            ? 'bg-cyan-500 text-white'
-            : 'text-slate-300 hover:text-white'
-        }`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-        </svg>
-        Filter by Channel
-      </button>
-    </div>
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
       {/* Common Filters */}
@@ -465,7 +346,6 @@ const FilterControls: React.FC<{
           <option value="trending">Trending</option>
           <option value="views">Most Views</option>
           <option value="date">Newest</option>
-          {filters.mode === 'channel' && <option value="subscribers">Most Subscribers</option>}
         </select>
       </div>
 
@@ -536,19 +416,11 @@ const FilterControls: React.FC<{
             {filters.mode === 'video' ? '🎬 Video Filters' : '👤 Channel Filters'}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filters.mode === 'video' ? (
-              <VideoFiltersComponent
+<VideoFiltersComponent
                 filters={filters.videoFilters}
                 onFilterChange={onVideoFilterChange}
                 commonSelectClasses={commonSelectClasses}
               />
-            ) : (
-              <ChannelFiltersComponent
-                filters={filters.channelFilters}
-                onFilterChange={onChannelFilterChange}
-                commonSelectClasses={commonSelectClasses}
-              />
-            )}
           </div>
         </div>
       </div>
@@ -647,8 +519,6 @@ const FilterBar: React.FC<FilterBarProps> = ({
             >
               <option value="" disabled>Select...</option>
               <option value="viral-videos">🔥 Viral Videos</option>
-              <option value="new-creators">🌱 New Creators</option>
-              <option value="established-channels">⭐ Established Channels</option>
               <option value="deep-dives">📚 Deep Dives</option>
             </select>
           </div>

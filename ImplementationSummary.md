@@ -1,5 +1,7 @@
 # Filter Modes Implementation Summary
 
+> Notice (2025-10-13): Channel Mode (filter-by-channel) has been removed from the UI and presets. This document describes the original dual-mode implementation for historical reference. Current builds use video-only filtering.
+
 ## 🎯 Overview
 
 Successfully implemented a dual-mode filtering system for TrendHub that provides distinct filtering experiences for videos and channels.

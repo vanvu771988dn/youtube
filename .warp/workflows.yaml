@@ -1,0 +1,46 @@
+workflows:
+  - name: "Vibe: Open in VS Code"
+    description: Open this project in VS Code
+    tags: [vibe, editor]
+    command: "code ."
+
+  - name: "Vibe: Start Dev Command"
+    description: Run your development server command (customizable)
+    tags: [vibe, dev]
+    command: "{{cmd}}"
+    inputs:
+      - name: cmd
+        description: Command to run for your dev server
+        default: npm run dev
+
+  - name: "Vibe: Test Watch"
+    description: Run your test suite in watch mode (customizable)
+    tags: [vibe, test]
+    command: "{{test_cmd}}"
+    inputs:
+      - name: test_cmd
+        description: Command to run tests (watch)
+        default: npm test -- --watch
+
+  - name: "Vibe: Git Pulse"
+    description: Quick git status and recent commit graph
+    tags: [vibe, git]
+    command: "git --no-pager status -sb; git --no-pager log --oneline --graph --decorate -n 15"
+
+  - name: "Vibe: Search in Project"
+    description: Search for a text pattern across files (PowerShell built-in)
+    tags: [vibe, search]
+    command: 'Get-ChildItem -Recurse -File | Select-String -Pattern "{{query}}" | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" }'
+    inputs:
+      - name: query
+        description: Text to search for
+        default: TODO
+
+  - name: "Vibe: Kill Process on Port"
+    description: Stop the process listening on a given port (Windows/PowerShell)
+    tags: [vibe, network]
+    command: ' $p=(Get-NetTCPConnection -LocalPort {{port}} -State Listen -ErrorAction SilentlyContinue).OwningProcess; if($p){ Stop-Process -Id $p -Force; Write-Output "Killed process $p on port {{port}}" } else { Write-Output "No process listening on port {{port}}" } '
+    inputs:
+      - name: port
+        description: TCP port number
+        default: 3000

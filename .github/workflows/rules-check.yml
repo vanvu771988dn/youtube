@@ -1,0 +1,65 @@
+name: Rules Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  rules-check:
+    name: Validate engineering rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed paths
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            fe:
+              - 'youtube/**'
+            fe_filters:
+              - 'youtube/**/*Filter*.tsx'
+              - 'youtube/components/*Filter*'
+              - 'youtube/hooks/useFilters.ts'
+              - 'youtube/hooks/useEnhancedFilters.ts'
+              - 'youtube/lib/types.ts'
+              - 'youtube/lib/filterMapping.ts'
+            be:
+              - 'backend/**'
+              - '!backend/node_modules/**'
+            warp_rules:
+              - '.warp/rules/**'
+
+      - name: Show detected changes (debug)
+        run: |
+          echo "fe=${{ steps.changes.outputs.fe }}"
+          echo "fe_filters=${{ steps.changes.outputs.fe_filters }}"
+          echo "be=${{ steps.changes.outputs.be }}"
+          echo "warp_rules=${{ steps.changes.outputs.warp_rules }}"
+
+      - name: Verify .warp rules present
+        run: |
+          set -e
+          test -f .warp/rules/RULES.md || (echo 'Missing .warp/rules/RULES.md' && exit 1)
+          test -f .warp/rules/RULES.FE.md || (echo 'Missing .warp/rules/RULES.FE.md' && exit 1)
+          test -f .warp/rules/RULES.BE.md || (echo 'Missing .warp/rules/RULES.BE.md' && exit 1)
+
+      - name: Enforce FE/BE parity for filter-related FE changes
+        if: steps.changes.outputs.fe_filters == 'true'
+        run: |
+          if [ "${{ steps.changes.outputs.be }}" != "true" ]; then
+            echo "Filter-related FE changes detected, but no backend changes found under backend/**."
+            echo "Per Rule 1, changes must be checked/updated in both FE and BE."
+            exit 1
+          fi
+
+      - name: Warn on backend changes without FE updates
+        if: steps.changes.outputs.be == 'true' && steps.changes.outputs.fe != 'true'
+        run: |
+          echo "Backend changes detected without FE changes."
+          echo "If BE filtering or API contracts changed, FE updates may be required (Rule 1)."

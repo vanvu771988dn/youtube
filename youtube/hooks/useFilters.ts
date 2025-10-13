@@ -79,28 +79,6 @@ export const filterPresets: Record<string, Partial<FilterState>> = {
       customDate: { start: null, end: null },
     },
   },
-  'new-creators': {
-    mode: 'channel',
-    sortBy: 'subscribers',
-    channelFilters: {
-      subscriberCount: { min: 0, max: 100_000 },
-      channelAge: '1y',
-      videoCount: { min: 0, max: MAX_VIDEO_COUNT },
-      monetizationEnabled: 'all',
-      monetizationAge: 'all',
-    },
-  },
-  'established-channels': {
-    mode: 'channel',
-    sortBy: 'subscribers',
-    channelFilters: {
-      subscriberCount: { min: 500_000, max: MAX_SUBSCRIBERS },
-      channelAge: '5y',
-      videoCount: { min: 0, max: MAX_VIDEO_COUNT },
-      monetizationEnabled: 'all',
-      monetizationAge: 'all',
-    },
-  },
   'deep-dives': {
     mode: 'video',
     sortBy: 'views',

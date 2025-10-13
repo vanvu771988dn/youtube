@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 - 2025-10-13
+- Removed Channel mode (filter-by-channel) from the UI and presets
+- Simplified sorting options (removed "Most Subscribers")
+- Updated documentation to reflect video-only filtering
+- Kept backward-compatible types to avoid breaking external imports
+
 All notable changes to TrendHub will be documented in this file.
 
 ## [2.0.0] - 2025-10-06
