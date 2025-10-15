@@ -3,7 +3,7 @@ import YouTubeService from '../services/youtube.service';
 import { buildYouTubeQueryKey, getPublishedAfterDate, getYouTubeSortOrder, mapChannelAgeToYears } from './filterMapping';
 import config from './config';
 import { calculateVelocity } from '../utils/formatters';
-import { DEFAULT_SAFETY_PAGES, RESTRICTIVE_FILTER_SAFETY_PAGES, MULTI_FILTER_SAFETY_PAGES, MAX_VIEWS, MAX_SUBSCRIBERS } from './constants';
+import { DEFAULT_SAFETY_PAGES, RESTRICTIVE_FILTER_SAFETY_PAGES, MULTI_FILTER_SAFETY_PAGES, MAX_VIEWS, MAX_SUBSCRIBERS, MAX_VIDEO_COUNT } from './constants';
 import { matchesAnyDurationBracket } from '../utils/durationUtils';
 
 // Internal pagination state across calls, keyed by meaningful filter signature
@@ -57,13 +57,45 @@ export const fetchYouTubePage = async (
   }
 
   console.log(`[Aggregator] Active filters: ${activeFilterCount}, Safety pages: ${safetyPages}`);
-  console.log(`[Aggregator] Target: ${filters.limit} videos, Current pool: ${pool.length}`);
+  console.log(`[Aggregator] Mode: ${filters.mode}`);
+  
+  // For channel mode:
+  // - WITH keywords: fetch channels directly (need higher multiplier for filtering)
+  // - WITHOUT keywords: fetch videos and group (need much higher multiplier)
+  const isChannelMode = filters.mode === 'channel';
+  const hasKeywords = filters.keywords && filters.keywords.trim();
+  const useDirectChannelSearch = isChannelMode && hasKeywords;
+  
+  // Check if we have restrictive channel filters that will eliminate many results
+  const hasRestrictiveChannelFilters = 
+    (filters.channelFilters as any).createdDate?.start || 
+    (filters.channelFilters as any).createdDate?.end ||
+    filters.channelFilters.videoCount.min > 0 ||
+    filters.channelFilters.videoCount.max < MAX_VIDEO_COUNT;
+  
+  // Higher multipliers for channel mode, even higher when filtering
+  let channelMultiplier = 1;
+  if (isChannelMode) {
+    if (useDirectChannelSearch) {
+      channelMultiplier = hasRestrictiveChannelFilters ? 10 : 3; // Fetch 10x when filtering channels
+    } else {
+      channelMultiplier = hasRestrictiveChannelFilters ? 15 : 8; // Need 15x videos to get enough filtered channels
+    }
+  }
+  
+  const effectiveLimit = filters.limit * channelMultiplier;
+  
+  console.log(`[Aggregator] Channel multiplier: ${channelMultiplier} (hasRestrictiveFilters: ${hasRestrictiveChannelFilters})`);
+  console.log(`[Aggregator] Using direct channel search: ${useDirectChannelSearch}`);
+  
+  console.log(`[Aggregator] Target: ${filters.limit} ${isChannelMode ? 'channels' : 'videos'}, Effective fetch limit: ${effectiveLimit}`);
+  console.log(`[Aggregator] Current pool: ${pool.length}`);
   
   let nextToken: string | undefined = state.nextPageToken;
   let apiCallCount = 0;
   let totalFetchedFromAPI = 0;
 
-  while (pool.length < filters.limit && safetyPages > 0) {
+  while (pool.length < effectiveLimit && safetyPages > 0) {
     safetyPages--;
     apiCallCount++;
     let pageVideos: Video[] = [];
@@ -71,7 +103,28 @@ export const fetchYouTubePage = async (
     
     console.log(`[Aggregator] === API Call ${apiCallCount} (pool: ${pool.length}/${filters.limit}, pages left: ${safetyPages}) ===`);
 
-    if (filters.keywords && filters.keywords.trim()) {
+    // CHANNEL MODE WITH KEYWORDS: Search channels directly
+    if (useDirectChannelSearch) {
+      const order = getYouTubeSortOrder(filters.sortBy);
+      const channelOrder = order === 'date' ? 'date' : order === 'viewCount' ? 'viewCount' : 'relevance';
+      const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
+      const combinedQuery = terms.length > 1 ? terms.join(' ') : filters.keywords;
+      
+      console.log(`[Aggregator] Channel mode (with keywords): searching channels with query "${combinedQuery}"`);
+      
+      const { channels, nextPageToken: token } = await youtubeService.searchChannels(
+        combinedQuery,
+        50,
+        channelOrder,
+        nextToken
+      );
+      
+      pageVideos = channels; // Channels are returned in Video format
+      pageNextToken = token;
+      console.log(`[Aggregator] Channel search results: ${channels.length} channels, nextToken: ${token ? 'yes' : 'no'}`);
+    }
+    // VIDEO MODE OR CHANNEL MODE WITHOUT KEYWORDS: Search/fetch videos
+    else if (filters.keywords && filters.keywords.trim()) {
       let publishedAfter: string | undefined;
       try {
         publishedAfter = getPublishedAfterDate(filters.videoFilters.uploadDate, filters.videoFilters.customDate);
@@ -123,7 +176,8 @@ export const fetchYouTubePage = async (
         console.log(`[Aggregator] Single keyword search: ${videos.length} videos, nextToken: ${token ? 'yes' : 'no'}`);
       }
     } else {
-      // Trending videos (no keyword search)
+      // No keywords: fetch trending videos (works for both video and channel mode)
+      console.log(`[Aggregator] ${isChannelMode ? 'Channel mode (no keywords)' : 'Video mode'}: fetching trending videos...`);
       const { videos, nextPageToken: token } = await youtubeService.getTrendingVideos(
         50,
         filters.country !== 'ALL' ? filters.country : config.youtube.defaultRegion,
@@ -191,17 +245,19 @@ export const fetchYouTubePage = async (
         addedCount++;
       }
     }
-    console.log(`[Aggregator] De-duplication: ${beforeDedup} -> ${addedCount} new videos added to pool (pool size: ${pool.length})`);
+    console.log(`[Aggregator] De-duplication: ${beforeDedup} -> ${addedCount} new ${isChannelMode ? 'channels' : 'videos'} added to pool (pool size: ${pool.length})`);
 
     // Check if we need to fetch more pages
-    if (pool.length < filters.limit && pageNextToken) {
+    const shouldContinue = pool.length < effectiveLimit;
+    
+    if (shouldContinue && pageNextToken) {
       nextToken = pageNextToken;
-      console.log(`[Aggregator] ➡ Continue fetching: pool=${pool.length}/${filters.limit}, nextToken=${pageNextToken ? 'exists' : 'none'}, pages remaining: ${safetyPages}`);
+      console.log(`[Aggregator] ➡ Continue fetching: pool=${pool.length}/${effectiveLimit}, nextToken=${pageNextToken ? 'exists' : 'none'}, pages remaining: ${safetyPages}`);
     } else {
       // CRITICAL: Save the nextPageToken even if we're stopping
       state.nextPageToken = pageNextToken;
       console.log(`[Aggregator] ⏸ STOPPING fetch loop:`);
-      console.log(`[Aggregator]    - Pool size: ${pool.length}/${filters.limit}`);
+      console.log(`[Aggregator]    - Pool size: ${pool.length}/${effectiveLimit}`);
       console.log(`[Aggregator]    - pageNextToken: ${pageNextToken ? '✓ EXISTS' : '✗ NONE'}`);
       console.log(`[Aggregator]    - Saved to state.nextPageToken: ${state.nextPageToken ? '✓ YES' : '✗ NO'}`);
       console.log(`[Aggregator]    - Pages remaining: ${safetyPages}`);
@@ -212,59 +268,100 @@ export const fetchYouTubePage = async (
   console.log(`[Aggregator] === Fetch Summary ===`);
   console.log(`[Aggregator] API calls made: ${apiCallCount}`);
   console.log(`[Aggregator] Total videos fetched from API: ${totalFetchedFromAPI}`);
-  console.log(`[Aggregator] Videos after filtering: ${pool.length}`);
-  console.log(`[Aggregator] Target was: ${filters.limit}`);
+  console.log(`[Aggregator] Videos in pool: ${pool.length}`);
+  console.log(`[Aggregator] Target was: ${filters.limit} ${isChannelMode ? 'channels' : 'videos'}`);
   console.log(`[Aggregator] Efficiency: ${totalFetchedFromAPI > 0 ? Math.round((pool.length / totalFetchedFromAPI) * 100) : 0}% pass rate`);
 
-  // Channel aggregation
+  // Channel aggregation/filtering
   if (filters.mode === 'channel') {
-    const groups = new Map<string, Video[]>();
-    for (const v of pool) {
-      const k = v.channelId || v.creatorName;
-      const arr = groups.get(k) || [];
-      arr.push(v);
-      groups.set(k, arr);
-    }
+    console.log(`[Aggregator] === Channel Aggregation/Filtering ===`);
+    
+    let aggregated: Video[];
+    
+    // If we used direct channel search, channels are already aggregated
+    if (useDirectChannelSearch) {
+      console.log(`[Aggregator] Channels fetched directly (${pool.length} channels), applying filters...`);
+      aggregated = pool;
+    } else {
+      // Group videos by channel
+      console.log(`[Aggregator] Grouping ${pool.length} videos by channel...`);
+      
+      const groups = new Map<string, Video[]>();
+      for (const v of pool) {
+        const k = v.channelId || v.creatorName;
+        const arr = groups.get(k) || [];
+        arr.push(v);
+        groups.set(k, arr);
+      }
+      
+      console.log(`[Aggregator] Found ${groups.size} unique channels`);
 
-    let aggregated: Video[] = [];
-    for (const [k, arr] of groups.entries()) {
-      const totalDuration = arr.reduce((s, x) => s + (x.duration || 0), 0);
-      const avgVideoLength = arr.length > 0 ? Math.round(totalDuration / arr.length) : 0;
-      const lastUpdatedAt = arr.map(x => x.uploadDate).sort().slice(-1)[0];
-      const representative = arr.reduce((best, x) => (x.viewCount > best.viewCount ? x : best), arr[0]);
-      const channelViewCount = representative.channelViewCount || arr.reduce((s, x) => s + (x.viewCount || 0), 0);
-      const videoCount = representative.videoCount;
+      aggregated = [];
+      for (const [k, arr] of groups.entries()) {
+        const totalDuration = arr.reduce((s, x) => s + (x.duration || 0), 0);
+        const avgVideoLength = arr.length > 0 ? Math.round(totalDuration / arr.length) : 0;
+        const lastUpdatedAt = arr.map(x => x.uploadDate).sort().slice(-1)[0];
+        const representative = arr.reduce((best, x) => (x.viewCount > best.viewCount ? x : best), arr[0]);
+        const channelViewCount = representative.channelViewCount || arr.reduce((s, x) => s + (x.viewCount || 0), 0);
+        const videoCount = representative.videoCount;
 
-      aggregated.push({
-        ...representative,
-        avgVideoLength,
-        lastUpdatedAt,
-        channelViewCount,
-        videoCount,
-      });
+        aggregated.push({
+          ...representative,
+          avgVideoLength,
+          lastUpdatedAt,
+          channelViewCount,
+          videoCount,
+        });
+      }
     }
+    
+    console.log(`[Aggregator] Applying channel-specific filters to ${aggregated.length} channels...`);
+    let filtered: Video[] = aggregated;
 
     // Filter by avg video length if provided
     const avgRange = filters.channelFilters.avgVideoLength;
     if (avgRange && (avgRange.min > 0 || avgRange.max < Infinity)) {
-      aggregated = aggregated.filter(v => (v.avgVideoLength || 0) >= avgRange.min && (v.avgVideoLength || 0) <= avgRange.max);
+      const beforeAvgFilter = filtered.length;
+      filtered = filtered.filter(v => (v.avgVideoLength || 0) >= avgRange.min && (v.avgVideoLength || 0) <= avgRange.max);
+      console.log(`[Aggregator] Avg video length filter: ${beforeAvgFilter} -> ${filtered.length}`);
     }
 
     // Filter by channel created date range if provided
     const created = (filters.channelFilters as any).createdDate;
     if (created && (created.start || created.end)) {
-      const start = created.start ? new Date(created.start) : null;
-      const end = created.end ? new Date(created.end) : null;
-      aggregated = aggregated.filter(v => {
-        if (!v.channelCreatedAt) return false;
-        const d = new Date(v.channelCreatedAt);
-        if (start && d < start) return false;
-        if (end && d > end) return false;
-        return true;
+      if (useDirectChannelSearch) {
+        const beforeDateFilter = filtered.length;
+        const start = created.start ? new Date(created.start) : null;
+        const end = created.end ? new Date(created.end) : null;
+        filtered = filtered.filter(v => {
+          if (!v.channelCreatedAt) {
+            console.log(`[Aggregator] Channel "${v.creatorName}" missing channelCreatedAt, excluding`);
+            return false;
+          }
+          const d = new Date(v.channelCreatedAt);
+          if (start && d < start) return false;
+          if (end && d > end) return false;
+          return true;
+        });
+        console.log(`[Aggregator] Channel created date filter (${created.start || 'any'} to ${created.end || 'any'}): ${beforeDateFilter} -> ${filtered.length}`);
+      } else {
+        console.warn('[Aggregator] Ignoring channel created date filter because channel mode has no keywords (API limitation).');
+      }
+    }
+    
+    // Filter by video count if provided
+    const vcRange = filters.channelFilters.videoCount;
+    if (vcRange && (vcRange.min > 0 || vcRange.max < MAX_VIDEO_COUNT)) {
+      const beforeVCFilter = filtered.length;
+      filtered = filtered.filter(v => {
+        const count = v.videoCount || 0;
+        return count >= vcRange.min && count <= vcRange.max;
       });
+      console.log(`[Aggregator] Video count filter: ${beforeVCFilter} -> ${filtered.length}`);
     }
 
-    pool = aggregated;
+    console.log(`[Aggregator] Final channel count after filtering: ${filtered.length}`);
+    pool = filtered;
   }
 
   // Sort after collecting

@@ -84,6 +84,33 @@ interface YouTubeVideosResponse {
 
 interface YouTubeChannelsResponse {
   items: YouTubeChannel[];
+  nextPageToken?: string;
+  pageInfo: {
+    totalResults: number;
+    resultsPerPage: number;
+  };
+}
+
+interface YouTubeChannelSearchResponse {
+  items: Array<{
+    id: { channelId: string };
+    snippet: {
+      title: string;
+      description: string;
+      thumbnails: {
+        default: { url: string };
+        medium: { url: string };
+        high: { url: string };
+      };
+      channelTitle: string;
+      publishedAt: string;
+    };
+  }>;
+  nextPageToken?: string;
+  pageInfo: {
+    totalResults: number;
+    resultsPerPage: number;
+  };
 }
 
 class YouTubeService {
@@ -415,7 +442,7 @@ class YouTubeService {
    * @param channelIds Array of channel IDs
    * @returns Promise<YouTubeChannel[]>
    */
-  private async getChannelsInfo(channelIds: string[]): Promise<YouTubeChannel[]> {
+  async getChannelsInfo(channelIds: string[]): Promise<YouTubeChannel[]> {
     try {
       const channelsUrl = `${this.baseUrl}/channels`;
       const channelsParams = new URLSearchParams({
@@ -436,6 +463,106 @@ class YouTubeService {
     } catch (error) {
       console.error('Error getting channels info:', error);
       return [];
+    }
+  }
+
+  /**
+   * Searches for channels using YouTube Search API
+   * @param query Search query
+   * @param maxResults Maximum number of results (default: 50)
+   * @param order Sort order (date, rating, relevance, title, videoCount, viewCount)
+   * @param pageToken Pagination token
+   * @returns Promise<{ channels: Video[]; nextPageToken?: string }>
+   */
+  async searchChannels(
+    query: string,
+    maxResults: number = 50,
+    order: 'date' | 'relevance' | 'viewCount' = 'relevance',
+    pageToken?: string
+  ): Promise<{ channels: Video[]; nextPageToken?: string }> {
+    try {
+      if (!query || !query.trim()) {
+        console.warn('[YouTube Service] Empty channel search query');
+        return { channels: [], nextPageToken: undefined };
+      }
+
+      const searchUrl = `${this.baseUrl}/search`;
+      const searchParams = new URLSearchParams({
+        part: 'snippet',
+        type: 'channel',
+        q: query,
+        maxResults: Math.min(maxResults, 50).toString(),
+        key: this.apiKey,
+        order,
+      });
+
+      if (pageToken) {
+        searchParams.append('pageToken', pageToken);
+      }
+
+      const searchResponse = await fetch(`${searchUrl}?${searchParams}`);
+      
+      if (!searchResponse.ok) {
+        const errorText = await searchResponse.text();
+        throw new Error(`YouTube API error: ${searchResponse.status} ${searchResponse.statusText} - ${errorText}`);
+      }
+
+      const searchData: YouTubeChannelSearchResponse = await searchResponse.json();
+      
+      console.log(`[YouTube Service] searchChannels: Query="${query}", Requested ${maxResults}, Got ${searchData.items?.length || 0}, NextToken: ${searchData.nextPageToken ? 'yes' : 'no'}`);
+      
+      if (!searchData.items || searchData.items.length === 0) {
+        console.warn(`[YouTube Service] No channel results for query: "${query}"`);
+        return { channels: [], nextPageToken: undefined };
+      }
+
+      const channelIds = searchData.items
+        .map(item => item.id?.channelId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+      if (channelIds.length === 0) {
+        return { channels: [], nextPageToken: searchData.nextPageToken };
+      }
+
+      // Get full channel details
+      const channelDetails = await this.getChannelsInfo(channelIds);
+      
+      // Convert channels to Video format (representing channels as their representative content)
+      const channels: Video[] = channelDetails.map(channel => {
+        const channelAge = this.calculateChannelAge(channel.snippet.publishedAt);
+        
+        return {
+          id: channel.id,
+          platform: 'youtube' as const,
+          title: channel.snippet.title,
+          thumbnail: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.medium?.url || channel.snippet.thumbnails.default?.url,
+          url: `https://www.youtube.com/channel/${channel.id}`,
+          creatorName: channel.snippet.title,
+          creatorAvatar: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.medium?.url || channel.snippet.thumbnails.default?.url,
+          subscriberCount: parseInt(channel.statistics.subscriberCount, 10),
+          viewCount: channel.statistics.viewCount ? parseInt(channel.statistics.viewCount, 10) : 0,
+          likeCount: 0,
+          duration: 0,
+          uploadDate: channel.snippet.publishedAt,
+          channelAge,
+          tags: [],
+          category: '',
+          commentCount: 0,
+          channelId: channel.id,
+          channelCreatedAt: channel.snippet.publishedAt,
+          channelDescription: channel.snippet.description,
+          channelThumbnail: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.medium?.url || channel.snippet.thumbnails.default?.url,
+          channelViewCount: channel.statistics.viewCount ? parseInt(channel.statistics.viewCount, 10) : 0,
+          videoCount: channel.statistics.videoCount ? parseInt(channel.statistics.videoCount, 10) : 0,
+        };
+      });
+      
+      console.log(`[YouTube Service] searchChannels: Enriched ${channels.length} channels with full details`);
+
+      return { channels, nextPageToken: searchData.nextPageToken };
+    } catch (error) {
+      console.error('[YouTube Service] Error searching channels:', error);
+      throw new Error(`Failed to search channels: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

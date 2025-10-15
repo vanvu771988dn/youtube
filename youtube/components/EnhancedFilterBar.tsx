@@ -219,9 +219,24 @@ const FilterControls: React.FC<{
       {/* Channel Created Date Range */}
       <div className="space-y-1">
         <label className="block text-sm font-medium mb-1">Channel Created</label>
+        {filters.mode === 'channel' && !((filters.keywords || '').trim()) && (
+          <p className="text-xs text-yellow-400 mb-1">Enter a search query to enable channel creation date filter (API limitation).</p>
+        )}
         <div className="grid grid-cols-2 gap-2">
-          <input type="date" value={(filters.channelFilters as any).createdDate?.start || ''} onChange={(e)=> onFilterChange('channelFilters' as any, { ...filters.channelFilters, createdDate: { ...filters.channelFilters.createdDate, start: e.target.value || null } } as any)} className={commonSelectClasses} />
-          <input type="date" value={(filters.channelFilters as any).createdDate?.end || ''} onChange={(e)=> onFilterChange('channelFilters' as any, { ...filters.channelFilters, createdDate: { ...filters.channelFilters.createdDate, end: e.target.value || null } } as any)} className={commonSelectClasses} />
+          <input 
+            type="date" 
+            value={(filters.channelFilters as any).createdDate?.start || ''} 
+            onChange={(e)=> onFilterChange('channelFilters' as any, { ...filters.channelFilters, createdDate: { ...filters.channelFilters.createdDate, start: e.target.value || null } } as any)} 
+            className={commonSelectClasses}
+            disabled={filters.mode === 'channel' && !((filters.keywords || '').trim())}
+          />
+          <input 
+            type="date" 
+            value={(filters.channelFilters as any).createdDate?.end || ''} 
+            onChange={(e)=> onFilterChange('channelFilters' as any, { ...filters.channelFilters, createdDate: { ...filters.channelFilters.createdDate, end: e.target.value || null } } as any)} 
+            className={commonSelectClasses}
+            disabled={filters.mode === 'channel' && !((filters.keywords || '').trim())}
+          />
         </div>
       </div>
 
