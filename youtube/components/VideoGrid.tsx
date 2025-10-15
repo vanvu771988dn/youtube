@@ -85,7 +85,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ videos, loading, error, hasMore, 
       );
   }
 
-  console.log('[VideoGrid] videos prop:', videos);
+  console.log('[VideoGrid] Render state:', { videosCount: videos.length, loading, hasMore, error: !!error });
 
   return (
     <div>

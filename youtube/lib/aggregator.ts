@@ -3,6 +3,8 @@ import YouTubeService from '../services/youtube.service';
 import { buildYouTubeQueryKey, getPublishedAfterDate, getYouTubeSortOrder, mapChannelAgeToYears } from './filterMapping';
 import config from './config';
 import { calculateVelocity } from '../utils/formatters';
+import { DEFAULT_SAFETY_PAGES, RESTRICTIVE_FILTER_SAFETY_PAGES, MULTI_FILTER_SAFETY_PAGES, MAX_VIEWS, MAX_SUBSCRIBERS } from './constants';
+import { matchesAnyDurationBracket } from '../utils/durationUtils';
 
 // Internal pagination state across calls, keyed by meaningful filter signature
 // Stores a buffer of leftover items and de-duplication set
@@ -13,22 +15,61 @@ export const fetchYouTubePage = async (
   youtubeService: YouTubeService
 ): Promise<{ data: Video[]; hasMore: boolean }> => {
   const key = buildYouTubeQueryKey(filters);
+  
+  console.log(`[Aggregator] ========== STARTING fetchYouTubePage ==========`);
+  console.log(`[Aggregator] Page: ${filters.page}, Limit: ${filters.limit}`);
+  console.log(`[Aggregator] State exists: ${ytPaginationState.has(key)}`);
+  
   if (!ytPaginationState.has(key) || filters.page === 1) {
+    console.log(`[Aggregator] ↻ RESETTING state (new query or page 1)`);
     ytPaginationState.set(key, { nextPageToken: undefined, seenIds: new Set<string>(), buffer: [] });
+  } else {
+    const existingState = ytPaginationState.get(key)!;
+    console.log(`[Aggregator] ➡ CONTINUING from existing state:`);
+    console.log(`[Aggregator]    - nextPageToken: ${existingState.nextPageToken ? '✓ EXISTS' : '✗ NONE'}`);
+    console.log(`[Aggregator]    - buffer size: ${existingState.buffer.length}`);
+    console.log(`[Aggregator]    - seen IDs: ${existingState.seenIds.size}`);
   }
+  
   const state = ytPaginationState.get(key)!;
 
   // Start from buffered leftovers
   let pool: Video[] = state.buffer ? [...state.buffer] : [];
   state.buffer = [];
+  
+  console.log(`[Aggregator] Starting pool size: ${pool.length}`);
 
-  let safetyPages = 10;
+  // Count active restrictive filters to determine fetch strategy
+  const activeFilterCount = [
+    filters.videoFilters.duration && filters.videoFilters.duration.length > 0,
+    filters.videoFilters.viewCount.min > 0 || filters.videoFilters.viewCount.max < MAX_VIEWS,
+    filters.channelFilters.subscriberCount.min > 0 || filters.channelFilters.subscriberCount.max < MAX_SUBSCRIBERS,
+    filters.videoFilters.uploadDate !== 'all',
+    filters.channelFilters.channelAge !== 'all',
+  ].filter(Boolean).length;
+
+  // Increase safety pages based on number of active filters
+  let safetyPages = DEFAULT_SAFETY_PAGES;
+  if (activeFilterCount >= 3) {
+    safetyPages = MULTI_FILTER_SAFETY_PAGES; // 50 pages for 3+ filters
+  } else if (activeFilterCount >= 1) {
+    safetyPages = RESTRICTIVE_FILTER_SAFETY_PAGES; // 30 pages for 1-2 filters
+  }
+
+  console.log(`[Aggregator] Active filters: ${activeFilterCount}, Safety pages: ${safetyPages}`);
+  console.log(`[Aggregator] Target: ${filters.limit} videos, Current pool: ${pool.length}`);
+  
   let nextToken: string | undefined = state.nextPageToken;
+  let apiCallCount = 0;
+  let totalFetchedFromAPI = 0;
 
   while (pool.length < filters.limit && safetyPages > 0) {
     safetyPages--;
+    apiCallCount++;
     let pageVideos: Video[] = [];
     let pageNextToken: string | undefined;
+    
+    console.log(`[Aggregator] === API Call ${apiCallCount} (pool: ${pool.length}/${filters.limit}, pages left: ${safetyPages}) ===`);
 
     if (filters.keywords && filters.keywords.trim()) {
       let publishedAfter: string | undefined;
@@ -51,85 +92,25 @@ export const fetchYouTubePage = async (
       const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
 
       if (terms.length > 1) {
-        // Enhanced multi-keyword search strategy
-        const searchStrategies = [];
+        // Use combined search only (simpler and supports pagination)
+        const combinedQuery = terms.join(' ');
+        console.log(`[Aggregator] Multi-keyword search: "${combinedQuery}"`);
         
-        // Strategy 1: Search individual terms (parallel)
-        const individualBatches = await Promise.all(terms.slice(0, 5).map(term => 
-          youtubeService!.searchVideos(
-            term,
-            Math.min(30, Math.floor(150 / terms.length)), // Distribute API quota
-            order,
-            publishedAfter,
-            undefined,
-            filters.language !== 'ALL' ? filters.language : undefined
-          ).catch(error => {
-            console.warn(`Search failed for term "${term}":`, error);
-            return { videos: [], nextPageToken: undefined };
-          })
-        ));
+        const { videos, nextPageToken: token } = await youtubeService.searchVideos(
+          combinedQuery,
+          50, // Full page size
+          order,
+          publishedAfter,
+          nextToken, // Enable pagination
+          filters.language !== 'ALL' ? filters.language : undefined
+        );
         
-        // Strategy 2: Search combined terms (for better relevance)
-        let combinedResults = { videos: [] as Video[], nextPageToken: undefined };
-        if (terms.length <= 4) {
-          try {
-            combinedResults = await youtubeService!.searchVideos(
-              terms.join(' '), // Combine all terms
-              50,
-              order,
-              publishedAfter,
-              undefined,
-              filters.language !== 'ALL' ? filters.language : undefined
-            );
-          } catch (error) {
-            console.warn('Combined search failed:', error);
-          }
-        }
-
-        // Strategy 3: Search term pairs (for 3+ keywords)
-        let pairResults: Video[] = [];
-        if (terms.length >= 3 && terms.length <= 6) {
-          const pairs = [];
-          for (let i = 0; i < Math.min(terms.length - 1, 3); i++) {
-            for (let j = i + 1; j < Math.min(terms.length, i + 3); j++) {
-              pairs.push(`${terms[i]} ${terms[j]}`);
-            }
-          }
-          
-          const pairBatches = await Promise.all(pairs.slice(0, 3).map(pair =>
-            youtubeService!.searchVideos(
-              pair,
-              20,
-              order,
-              publishedAfter,
-              undefined,
-              filters.language !== 'ALL' ? filters.language : undefined
-            ).catch(() => ({ videos: [], nextPageToken: undefined }))
-          ));
-          pairResults = pairBatches.flatMap(b => b.videos);
-        }
-
-        // Combine and score results
-        const allResults = [
-          ...combinedResults.videos.map(v => ({ ...v, _searchScore: 10 })), // Highest priority for combined search
-          ...individualBatches.flatMap(b => b.videos.map(v => ({ ...v, _searchScore: 5 }))), // Medium priority
-          ...pairResults.map(v => ({ ...v, _searchScore: 7 })) // High priority for pair matches
-        ];
-
-        // Remove duplicates and sort by relevance
-        const seen = new Set();
-        pageVideos = allResults
-          .filter(video => {
-            if (seen.has(video.id)) return false;
-            seen.add(video.id);
-            return true;
-          })
-          .sort((a, b) => ((b as any)._searchScore || 0) - ((a as any)._searchScore || 0))
-          .map(({ _searchScore, ...video }) => video); // Remove score property
-
-        pageNextToken = undefined; // No pagination for multi-term searches
+        pageVideos = videos;
+        pageNextToken = token;
+        console.log(`[Aggregator] Multi-keyword results: ${videos.length} videos, nextToken: ${token ? 'yes' : 'no'}`);
       } else {
-        const { videos, nextPageToken } = await youtubeService.searchVideos(
+        // Single keyword search
+        const { videos, nextPageToken: token } = await youtubeService.searchVideos(
           filters.keywords,
           50,
           order,
@@ -138,18 +119,24 @@ export const fetchYouTubePage = async (
           filters.language !== 'ALL' ? filters.language : undefined
         );
         pageVideos = videos;
-        pageNextToken = nextPageToken;
+        pageNextToken = token;
+        console.log(`[Aggregator] Single keyword search: ${videos.length} videos, nextToken: ${token ? 'yes' : 'no'}`);
       }
     } else {
-      const { videos, nextPageToken } = await youtubeService.getTrendingVideos(
+      // Trending videos (no keyword search)
+      const { videos, nextPageToken: token } = await youtubeService.getTrendingVideos(
         50,
         filters.country !== 'ALL' ? filters.country : config.youtube.defaultRegion,
         (filters as any).category || config.youtube.defaultCategoryId,
         nextToken
       );
       pageVideos = videos;
-      pageNextToken = nextPageToken;
+      pageNextToken = token;
+      console.log(`[Aggregator] Trending videos: ${videos.length} videos, nextToken: ${token ? 'yes' : 'no'}`);
     }
+    
+    totalFetchedFromAPI += pageVideos.length;
+    console.log(`[Aggregator] Fetched ${pageVideos.length} videos from YouTube API (total so far: ${totalFetchedFromAPI}, token: ${pageNextToken ? 'available' : 'none'}`);
 
     // Client-side filtering on video list
     let filteredVideos = pageVideos;
@@ -158,14 +145,22 @@ export const fetchYouTubePage = async (
       filteredVideos = filteredVideos.filter(v => v.platform === 'youtube');
     }
 
+    // Apply view count filter (only if meaningfully changed from defaults)
     const vc = filters.videoFilters.viewCount;
-    if (vc.min > 0 || vc.max < Infinity) {
+    const hasViewFilter = vc.min > 0 || vc.max < MAX_VIEWS;
+    if (hasViewFilter) {
+      const beforeViewFilter = filteredVideos.length;
       filteredVideos = filteredVideos.filter(v => v.viewCount >= vc.min && v.viewCount <= vc.max);
+      console.log(`[Aggregator] View filter: ${beforeViewFilter} -> ${filteredVideos.length} (${vc.min}-${vc.max})`);
     }
 
+    // Apply subscriber count filter (only if meaningfully changed from defaults)
     const sc = filters.channelFilters.subscriberCount;
-    if (sc.min > 0 || sc.max < Infinity) {
+    const hasSubFilter = sc.min > 0 || sc.max < MAX_SUBSCRIBERS;
+    if (hasSubFilter) {
+      const beforeSubFilter = filteredVideos.length;
       filteredVideos = filteredVideos.filter(v => v.subscriberCount >= sc.min && v.subscriberCount <= sc.max);
+      console.log(`[Aggregator] Subscriber filter: ${beforeSubFilter} -> ${filteredVideos.length} (${sc.min}-${sc.max})`);
     }
 
     if (filters.language && filters.language !== 'ALL') {
@@ -177,40 +172,49 @@ export const fetchYouTubePage = async (
       filteredVideos = filteredVideos.filter(v => typeof v.channelAge === 'number' && v.channelAge <= maxYears);
     }
 
+    // Apply duration filter using centralized utility
     if (filters.videoFilters.duration.length > 0) {
-      filteredVideos = filteredVideos.filter(video => {
-        return filters.videoFilters.duration.some(durationBracket => {
-          switch (durationBracket) {
-            case 60:
-              return video.duration < 60;
-            case 300:
-              return video.duration >= 60 && video.duration < 300;
-            case 1200:
-              return video.duration >= 300 && video.duration < 1200;
-            case Infinity:
-              return video.duration >= 1200;
-            default:
-              return false;
-          }
-        });
-      });
+      const beforeDurationFilter = filteredVideos.length;
+      filteredVideos = filteredVideos.filter(video =>
+        matchesAnyDurationBracket(video.duration, filters.videoFilters.duration)
+      );
+      console.log(`[Aggregator] Duration filter: ${beforeDurationFilter} -> ${filteredVideos.length}`);
     }
 
-    // De-duplicate
+    // De-duplicate and add to pool
+    const beforeDedup = filteredVideos.length;
+    let addedCount = 0;
     for (const v of filteredVideos) {
       if (!state.seenIds.has(v.id)) {
         state.seenIds.add(v.id);
         pool.push(v);
+        addedCount++;
       }
     }
+    console.log(`[Aggregator] De-duplication: ${beforeDedup} -> ${addedCount} new videos added to pool (pool size: ${pool.length})`);
 
+    // Check if we need to fetch more pages
     if (pool.length < filters.limit && pageNextToken) {
       nextToken = pageNextToken;
+      console.log(`[Aggregator] ➡ Continue fetching: pool=${pool.length}/${filters.limit}, nextToken=${pageNextToken ? 'exists' : 'none'}, pages remaining: ${safetyPages}`);
     } else {
+      // CRITICAL: Save the nextPageToken even if we're stopping
       state.nextPageToken = pageNextToken;
+      console.log(`[Aggregator] ⏸ STOPPING fetch loop:`);
+      console.log(`[Aggregator]    - Pool size: ${pool.length}/${filters.limit}`);
+      console.log(`[Aggregator]    - pageNextToken: ${pageNextToken ? '✓ EXISTS' : '✗ NONE'}`);
+      console.log(`[Aggregator]    - Saved to state.nextPageToken: ${state.nextPageToken ? '✓ YES' : '✗ NO'}`);
+      console.log(`[Aggregator]    - Pages remaining: ${safetyPages}`);
       break;
     }
   }
+  
+  console.log(`[Aggregator] === Fetch Summary ===`);
+  console.log(`[Aggregator] API calls made: ${apiCallCount}`);
+  console.log(`[Aggregator] Total videos fetched from API: ${totalFetchedFromAPI}`);
+  console.log(`[Aggregator] Videos after filtering: ${pool.length}`);
+  console.log(`[Aggregator] Target was: ${filters.limit}`);
+  console.log(`[Aggregator] Efficiency: ${totalFetchedFromAPI > 0 ? Math.round((pool.length / totalFetchedFromAPI) * 100) : 0}% pass rate`);
 
   // Channel aggregation
   if (filters.mode === 'channel') {
@@ -280,11 +284,38 @@ export const fetchYouTubePage = async (
 
   const pageData = pool.slice(0, filters.limit);
   // Save leftover items for next call
+  const remainingBuffer = pool.slice(filters.limit);
+  
+  // CRITICAL: Explicitly preserve nextPageToken when updating state
+  const currentState = ytPaginationState.get(key)!;
   ytPaginationState.set(key, {
-    ...ytPaginationState.get(key)!,
-    buffer: pool.slice(filters.limit),
+    seenIds: currentState.seenIds,
+    nextPageToken: currentState.nextPageToken,
+    buffer: remainingBuffer,
   });
 
-  const hasMore = ytPaginationState.get(key)!.buffer.length > 0 || !!ytPaginationState.get(key)!.nextPageToken;
+  // Calculate hasMore with multiple fallback conditions:
+  // 1. We have leftover videos in buffer
+  // 2. YouTube API provided a nextPageToken
+  // 3. We hit our safety page limit (likely more available)
+  // 4. We returned a FULL page of results (assume more available)
+  const updatedState = ytPaginationState.get(key)!;
+  const returnedFullPage = pageData.length >= filters.limit;
+  const hitSafetyLimit = safetyPages === 0 && pool.length >= filters.limit;
+  
+  const hasMore = remainingBuffer.length > 0 || 
+                  !!updatedState.nextPageToken || 
+                  hitSafetyLimit ||
+                  (returnedFullPage && totalFetchedFromAPI > 0);
+  
+  console.log(`[Aggregator] === hasMore Calculation ===`);
+  console.log(`[Aggregator] 1. remainingBuffer: ${remainingBuffer.length} ${remainingBuffer.length > 0 ? '✓' : '✗'}`);
+  console.log(`[Aggregator] 2. nextPageToken: ${updatedState.nextPageToken ? 'YES ✓' : 'NO ✗'}`);
+  console.log(`[Aggregator] 3. hitSafetyLimit: ${hitSafetyLimit ? 'YES ✓' : 'NO ✗'} (safetyPages=${safetyPages}, pool=${pool.length}, limit=${filters.limit})`);
+  console.log(`[Aggregator] 4. returnedFullPage: ${returnedFullPage ? 'YES ✓' : 'NO ✗'} (returned=${pageData.length}, limit=${filters.limit}, fetched=${totalFetchedFromAPI})`);
+  console.log(`[Aggregator] >>> FINAL hasMore: ${hasMore ? 'TRUE ✓✓✓' : 'FALSE'}`);
+  console.log(`[Aggregator] >>> Saved state for next call: nextPageToken=${updatedState.nextPageToken ? 'exists' : 'none'}, buffer=${updatedState.buffer.length}`);
+  console.log(`[Aggregator] ========== ENDING fetchYouTubePage ==========`);
+  
   return { data: pageData, hasMore };
 };

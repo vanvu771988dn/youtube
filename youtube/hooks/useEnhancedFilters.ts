@@ -1,71 +1,171 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { FilterState, PlatformType } from '../lib/types';
 import { dequal } from 'dequal';
+import {
+  MAX_VIEWS,
+  MAX_SUBSCRIBERS,
+  MAX_VIDEO_COUNT,
+  MAX_AVG_VIDEO_LENGTH,
+  FILTER_STEP,
+  DURATION_OPTIONS,
+  FILTER_DEBOUNCE_MS,
+} from '../lib/constants';
 
-// --- CONSTANTS ---
-
-export const MAX_VIEWS = 50_000_000;
-export const MAX_SUBSCRIBERS = 50_000_000;
-export const FILTER_STEP = 1000; // 1K unit steps for sliders
-
-export const DURATION_OPTIONS = [
-  { label: '< 1 min', value: 60 },
-  { label: '1-5 min', value: 300 },
-  { label: '5-20 min', value: 1200 },
-  { label: '> 20 min', value: Infinity },
-];
+// Re-export constants for backward compatibility
+export { MAX_VIEWS, MAX_SUBSCRIBERS, FILTER_STEP, DURATION_OPTIONS };
 
 // --- INITIAL STATE & PRESETS ---
 
 export const initialFilterState: FilterState = {
+  mode: 'video',
   platform: 'youtube',
-  uploadDate: 'all',
-  customDate: { start: null, end: null },
-  viewCount: { min: 0, max: MAX_VIEWS },
-  subscriberCount: { min: 0, max: MAX_SUBSCRIBERS },
   keywords: '',
-  channelAge: 'all',
-  duration: [],
-  trending24h: false,
   sortBy: 'trending',
+  country: 'ALL',
+  language: 'ALL',
+  category: '0',
+  videoFilters: {
+    uploadDate: 'all',
+    customDate: { start: null, end: null },
+    viewCount: { min: 0, max: MAX_VIEWS },
+    duration: [],
+    trending24h: false,
+  },
+  channelFilters: {
+    subscriberCount: { min: 0, max: MAX_SUBSCRIBERS },
+    videoCount: { min: 0, max: MAX_VIDEO_COUNT },
+    channelAge: 'all',
+    monetizationEnabled: 'all',
+    monetizationAge: 'all',
+    avgVideoLength: { min: 0, max: MAX_AVG_VIDEO_LENGTH },
+  },
 };
 
 export const filterPresets: Record<string, Partial<FilterState>> = {
   "viral-videos": {
+    mode: 'video',
     platform: 'youtube',
-    uploadDate: '24h',
     sortBy: 'trending',
-    viewCount: { min: 1_000_000, max: MAX_VIEWS },
-    trending24h: true,
+    videoFilters: {
+      uploadDate: '24h',
+      customDate: { start: null, end: null },
+      viewCount: { min: 1_000_000, max: MAX_VIEWS },
+      duration: [],
+      trending24h: true,
+    },
   },
   "new-creators": {
+    mode: 'channel',
     platform: 'youtube',
-    subscriberCount: { min: 0, max: 100_000 },
-    sortBy: 'trending',
-    channelAge: 1,
+    sortBy: 'subscribers',
+    channelFilters: {
+      subscriberCount: { min: 0, max: 100_000 },
+      videoCount: { min: 0, max: MAX_VIDEO_COUNT },
+      channelAge: '1y',
+      monetizationEnabled: 'all',
+      monetizationAge: 'all',
+      avgVideoLength: { min: 0, max: MAX_AVG_VIDEO_LENGTH },
+    },
   },
   "deep-dives": {
+    mode: 'video',
     platform: 'youtube',
-    duration: [1200, Infinity], // Videos longer than 20 minutes
     sortBy: 'views',
+    videoFilters: {
+      uploadDate: 'all',
+      customDate: { start: null, end: null },
+      viewCount: { min: 0, max: MAX_VIEWS },
+      duration: [1200, Infinity], // Videos longer than 20 minutes
+      trending24h: false,
+    },
   },
   "trending-shorts": {
+    mode: 'video',
     platform: 'youtube',
-    duration: [60],
-    uploadDate: '24h',
     sortBy: 'trending',
-    trending24h: true,
+    videoFilters: {
+      uploadDate: '24h',
+      customDate: { start: null, end: null },
+      viewCount: { min: 0, max: MAX_VIEWS },
+      duration: [0, 60], // Less than 1 minute
+      trending24h: true,
+    },
   },
-  "viral-dailymotion": {
-    platform: 'dailymotion',
-    uploadDate: '7d',
+  "high-engagement": {
+    mode: 'video',
+    platform: 'youtube',
+    sortBy: 'trending',
+    videoFilters: {
+      uploadDate: '7d',
+      customDate: { start: null, end: null },
+      viewCount: { min: 100_000, max: MAX_VIEWS },
+      duration: [],
+      trending24h: false,
+    },
+  },
+  "micro-influencers": {
+    mode: 'channel',
+    platform: 'youtube',
+    sortBy: 'subscribers',
+    channelFilters: {
+      subscriberCount: { min: 10_000, max: 100_000 },
+      videoCount: { min: 10, max: MAX_VIDEO_COUNT },
+      channelAge: '6m',
+      monetizationEnabled: 'all',
+      monetizationAge: 'all',
+      avgVideoLength: { min: 0, max: MAX_AVG_VIDEO_LENGTH },
+    },
+  },
+  "long-form-content": {
+    mode: 'video',
+    platform: 'youtube',
     sortBy: 'views',
-    viewCount: { min: 100_000, max: MAX_VIEWS },
+    videoFilters: {
+      uploadDate: '30d',
+      customDate: { start: null, end: null },
+      viewCount: { min: 10_000, max: MAX_VIEWS },
+      duration: [1200, Infinity], // 20+ minutes
+      trending24h: false,
+    },
   },
-  "reddit-hot": {
-    platform: 'reddit',
-    uploadDate: '24h',
+  "educational-content": {
+    mode: 'video',
+    platform: 'youtube',
+    sortBy: 'views',
+    category: '27', // Education category
+    videoFilters: {
+      uploadDate: '7d',
+      customDate: { start: null, end: null },
+      viewCount: { min: 10_000, max: MAX_VIEWS },
+      duration: [300, 1200], // 5-20 minutes
+      trending24h: false,
+    },
+  },
+  "gaming-highlights": {
+    mode: 'video',
+    platform: 'youtube',
     sortBy: 'trending',
+    category: '20', // Gaming category
+    videoFilters: {
+      uploadDate: '24h',
+      customDate: { start: null, end: null },
+      viewCount: { min: 50_000, max: MAX_VIEWS },
+      duration: [300, 1200], // 5-20 minutes
+      trending24h: true,
+    },
+  },
+  "music-videos": {
+    mode: 'video',
+    platform: 'youtube',
+    sortBy: 'views',
+    category: '10', // Music category
+    videoFilters: {
+      uploadDate: '7d',
+      customDate: { start: null, end: null },
+      viewCount: { min: 100_000, max: MAX_VIEWS },
+      duration: [120, 600], // 2-10 minutes
+      trending24h: false,
+    },
   },
 };
 
@@ -83,31 +183,39 @@ const validateFilters = (filters: FilterState): FilterValidationError[] => {
   const errors: FilterValidationError[] = [];
 
   // Validate view count range
-  if (filters.viewCount.min < 0) {
-    errors.push({ field: 'viewCount', message: 'Minimum view count cannot be negative' });
+  if (filters.videoFilters.viewCount.min < 0) {
+    errors.push({ field: 'videoFilters', message: 'Minimum view count cannot be negative' });
   }
-  if (filters.viewCount.max < filters.viewCount.min) {
-    errors.push({ field: 'viewCount', message: 'Maximum view count must be greater than minimum' });
+  if (filters.videoFilters.viewCount.max < filters.videoFilters.viewCount.min) {
+    errors.push({ field: 'videoFilters', message: 'Maximum view count must be greater than minimum' });
   }
 
   // Validate subscriber count range
-  if (filters.subscriberCount.min < 0) {
-    errors.push({ field: 'subscriberCount', message: 'Minimum subscriber count cannot be negative' });
+  if (filters.channelFilters.subscriberCount.min < 0) {
+    errors.push({ field: 'channelFilters', message: 'Minimum subscriber count cannot be negative' });
   }
-  if (filters.subscriberCount.max < filters.subscriberCount.min) {
-    errors.push({ field: 'subscriberCount', message: 'Maximum subscriber count must be greater than minimum' });
+  if (filters.channelFilters.subscriberCount.max < filters.channelFilters.subscriberCount.min) {
+    errors.push({ field: 'channelFilters', message: 'Maximum subscriber count must be greater than minimum' });
+  }
+
+  // Validate video count range
+  if (filters.channelFilters.videoCount.min < 0) {
+    errors.push({ field: 'channelFilters', message: 'Minimum video count cannot be negative' });
+  }
+  if (filters.channelFilters.videoCount.max < filters.channelFilters.videoCount.min) {
+    errors.push({ field: 'channelFilters', message: 'Maximum video count must be greater than minimum' });
   }
 
   // Validate custom date range
-  if (filters.uploadDate === 'custom') {
-    if (!filters.customDate.start && !filters.customDate.end) {
-      errors.push({ field: 'customDate', message: 'Custom date range requires at least start or end date' });
+  if (filters.videoFilters.uploadDate === 'custom') {
+    if (!filters.videoFilters.customDate.start && !filters.videoFilters.customDate.end) {
+      errors.push({ field: 'videoFilters', message: 'Custom date range requires at least start or end date' });
     }
-    if (filters.customDate.start && filters.customDate.end) {
-      const startDate = new Date(filters.customDate.start);
-      const endDate = new Date(filters.customDate.end);
+    if (filters.videoFilters.customDate.start && filters.videoFilters.customDate.end) {
+      const startDate = new Date(filters.videoFilters.customDate.start);
+      const endDate = new Date(filters.videoFilters.customDate.end);
       if (startDate > endDate) {
-        errors.push({ field: 'customDate', message: 'Start date must be before end date' });
+        errors.push({ field: 'videoFilters', message: 'Start date must be before end date' });
       }
     }
   }
@@ -130,33 +238,47 @@ const sanitizeFilters = (filters: FilterState): FilterState => {
   sanitized.keywords = filters.keywords.trim();
 
   // Ensure view count bounds
-  sanitized.viewCount = {
-    min: Math.max(0, Math.min(filters.viewCount.min, MAX_VIEWS)),
-    max: Math.max(filters.viewCount.min, Math.min(filters.viewCount.max, MAX_VIEWS)),
+  sanitized.videoFilters = {
+    ...sanitized.videoFilters,
+    viewCount: {
+      min: Math.max(0, Math.min(filters.videoFilters.viewCount.min, MAX_VIEWS)),
+      max: Math.max(filters.videoFilters.viewCount.min, Math.min(filters.videoFilters.viewCount.max, MAX_VIEWS)),
+    },
   };
 
   // Ensure subscriber count bounds
-  sanitized.subscriberCount = {
-    min: Math.max(0, Math.min(filters.subscriberCount.min, MAX_SUBSCRIBERS)),
-    max: Math.max(filters.subscriberCount.min, Math.min(filters.subscriberCount.max, MAX_SUBSCRIBERS)),
+  sanitized.channelFilters = {
+    ...sanitized.channelFilters,
+    subscriberCount: {
+      min: Math.max(0, Math.min(filters.channelFilters.subscriberCount.min, MAX_SUBSCRIBERS)),
+      max: Math.max(filters.channelFilters.subscriberCount.min, Math.min(filters.channelFilters.subscriberCount.max, MAX_SUBSCRIBERS)),
+    },
+    videoCount: {
+      min: Math.max(0, Math.min(filters.channelFilters.videoCount.min, MAX_VIDEO_COUNT)),
+      max: Math.max(filters.channelFilters.videoCount.min, Math.min(filters.channelFilters.videoCount.max, MAX_VIDEO_COUNT)),
+    },
+    avgVideoLength: {
+      min: Math.max(0, Math.min(filters.channelFilters.avgVideoLength.min, MAX_AVG_VIDEO_LENGTH)),
+      max: Math.max(filters.channelFilters.avgVideoLength.min, Math.min(filters.channelFilters.avgVideoLength.max, MAX_AVG_VIDEO_LENGTH)),
+    },
   };
 
   // Reset custom date if not using custom upload date
-  if (filters.uploadDate !== 'custom') {
-    sanitized.customDate = { start: null, end: null };
+  if (filters.videoFilters.uploadDate !== 'custom') {
+    sanitized.videoFilters.customDate = { start: null, end: null };
   }
 
   // Platform-specific filter adjustments
   if (filters.platform === 'dailymotion' || filters.platform === 'reddit') {
     // These platforms don't support subscriber count or channel age filtering
     if (filters.platform === 'dailymotion') {
-      sanitized.subscriberCount = { min: 0, max: MAX_SUBSCRIBERS };
-      sanitized.channelAge = 'all';
+      sanitized.channelFilters.subscriberCount = { min: 0, max: MAX_SUBSCRIBERS };
+      sanitized.channelFilters.channelAge = 'all';
     }
     if (filters.platform === 'reddit') {
-      sanitized.subscriberCount = { min: 0, max: MAX_SUBSCRIBERS };
-      sanitized.channelAge = 'all';
-      sanitized.trending24h = false; // Reddit doesn't support this
+      sanitized.channelFilters.subscriberCount = { min: 0, max: MAX_SUBSCRIBERS };
+      sanitized.channelFilters.channelAge = 'all';
+      sanitized.videoFilters.trending24h = false; // Reddit doesn't support this
     }
   }
 
@@ -176,7 +298,7 @@ interface FilterBatch {
 class FilterBatcher {
   private pendingBatch: FilterBatch | null = null;
   private timeoutId: NodeJS.Timeout | null = null;
-  private readonly BATCH_DELAY = 300; // ms
+  private readonly BATCH_DELAY = FILTER_DEBOUNCE_MS;
 
   constructor(private onApply: (filters: FilterState) => void) {}
 

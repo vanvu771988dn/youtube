@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FilterState } from '../lib/types';
 import SearchBar from './SearchBar';
-import { DURATION_OPTIONS, MAX_VIEWS, MAX_SUBSCRIBERS, FILTER_STEP } from '../hooks/useEnhancedFilters';
+import { DURATION_OPTIONS, MAX_VIEWS, MAX_SUBSCRIBERS, FILTER_STEP, YOUTUBE_CATEGORIES } from '../lib/constants';
 import { formatCount } from '../utils/formatters';
 
 // --- PROPS INTERFACES ---
@@ -307,20 +307,9 @@ const FilterControls: React.FC<{
           onChange={(e) => onFilterChange('category' as any, e.target.value as any)} 
           className={commonSelectClasses}
         >
-          <option value="0">All Categories</option>
-          <option value="1">Film & Animation</option>
-          <option value="2">Autos & Vehicles</option>
-          <option value="10">Music</option>
-          <option value="15">Pets & Animals</option>
-          <option value="17">Sports</option>
-          <option value="20">Gaming</option>
-          <option value="22">People & Blogs</option>
-          <option value="23">Comedy</option>
-          <option value="24">Entertainment</option>
-          <option value="25">News & Politics</option>
-          <option value="26">Howto & Style</option>
-          <option value="27">Education</option>
-          <option value="28">Science & Technology</option>
+          {YOUTUBE_CATEGORIES.map(cat => (
+            <option key={cat.id} value={cat.id}>{cat.label}</option>
+          ))}
         </select>
       </div>
 

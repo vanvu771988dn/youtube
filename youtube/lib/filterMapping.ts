@@ -1,4 +1,5 @@
 import { FilterState, ApiFilterParams, Video } from './types';
+import { CHANNEL_AGE_TO_YEARS } from './constants';
 
 // Build a key for caching/pagination state based on inputs affecting YouTube upstream
 export const buildYouTubeQueryKey = (filters: ApiFilterParams): string => {
@@ -88,22 +89,12 @@ export const getYouTubeSortOrder = (
   }
 };
 
+/**
+ * Maps channel age filter value to years
+ * Uses centralized mapping from constants
+ */
 export const mapChannelAgeToYears = (
   age: FilterState['channelFilters']['channelAge']
 ): number | null => {
-  if (age === 'all') return null;
-  switch (age) {
-    case '6m':
-      return 0.5;
-    case '1y':
-      return 1;
-    case '2y':
-      return 2;
-    case '5y':
-      return 5;
-    case '10y':
-      return 10;
-    default:
-      return null;
-  }
+  return CHANNEL_AGE_TO_YEARS[age] ?? null;
 };

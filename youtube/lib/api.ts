@@ -7,11 +7,10 @@ import YouTubeService from '../services/youtube.service';
 import { RedditService } from '../services/reddit.service';
 import { DailymotionService } from '../services/dailymotion.service';
 import { fetchYouTubePage } from './aggregator';
+import { API_TIMEOUT, MAX_RETRIES, RETRY_DELAY_MS, DEFAULT_PAGE_SIZE } from './constants';
+import { CHANNEL_AGE_TO_YEARS } from './constants';
 
 const BASE_URL = '/api/v1/';
-const TIMEOUT = 10000;
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
 
 let youtubeService: YouTubeService | null = null;
 if (config.features.useRealYouTubeData && config.youtubeApiKey && config.youtubeApiKey.trim()) {
@@ -30,7 +29,7 @@ if (config.features.useRealYouTubeData && config.youtubeApiKey && config.youtube
 // Lightweight Axios client (kept in case of future server requests)
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: TIMEOUT,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -73,21 +72,26 @@ apiClient.interceptors.response.use(
 );
 
 
+/**
+ * Maps channel age filter value to years
+ * Uses centralized mapping from constants
+ */
 const mapChannelAgeToYears = (age: FilterState['channelFilters']['channelAge']): number | null => {
-  if (age === 'all') return null;
-  switch (age) {
-    case '6m': return 0.5;
-    case '1y': return 1;
-    case '2y': return 2;
-    case '5y': return 5;
-    case '10y': return 10;
-    default: return null;
-  }
+  return CHANNEL_AGE_TO_YEARS[age] ?? null;
 };
 
 
+/**
+ * Fetches trending videos based on filter parameters
+ * Handles caching, pagination, and multi-platform support
+ */
 export const fetchTrends = async (filters: Partial<ApiFilterParams>): Promise<ApiResponse> => {
-  const fullFilters: ApiFilterParams = { ...initialFilterState, page: 1, limit: 50, ...(filters as any) } as any;
+  const fullFilters: ApiFilterParams = {
+    ...initialFilterState,
+    page: 1,
+    limit: DEFAULT_PAGE_SIZE,
+    ...filters
+  } as ApiFilterParams;
 
   const cacheKey = generateCacheKey(fullFilters);
   const cachedResponse = getFromApiCache(cacheKey);
@@ -140,8 +144,17 @@ export const fetchTrends = async (filters: Partial<ApiFilterParams>): Promise<Ap
   };
 };
 
+/**
+ * Searches for videos using a query string
+ * Convenience wrapper around fetchTrends
+ */
 export const searchVideos = (query: string, page: number = 1): Promise<ApiResponse> => {
-  const filters: ApiFilterParams = { ...initialFilterState, keywords: query, page, limit: 50 } as any;
+  const filters: ApiFilterParams = {
+    ...initialFilterState,
+    keywords: query,
+    page,
+    limit: DEFAULT_PAGE_SIZE
+  } as ApiFilterParams;
   return fetchTrends(filters);
 };
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchTrends } from '../lib/api';
 import { Video, ApiResponse, ApiError, FilterState } from '../lib/types';
+import { DEFAULT_PAGE_SIZE, DURATION_FILTER_PAGE_SIZE, MULTI_FILTER_PAGE_SIZE, MAX_VIEWS, MAX_SUBSCRIBERS } from '../lib/constants';
 
 interface UseTrendsReturn {
   videos: Video[];
@@ -78,14 +79,34 @@ export const useTrends = (filters: FilterState): UseTrendsReturn => {
     setError(null);
 
     try {
+      // Count active filters to determine fetch size
+      const activeFilterCount = [
+        (currentFilters.videoFilters?.duration?.length ?? 0) > 0,
+        currentFilters.videoFilters?.viewCount?.min > 0,
+        currentFilters.videoFilters?.viewCount?.max < MAX_VIEWS,
+        currentFilters.channelFilters?.subscriberCount?.min > 0,
+        currentFilters.channelFilters?.subscriberCount?.max < MAX_SUBSCRIBERS,
+        currentFilters.videoFilters?.uploadDate !== 'all',
+      ].filter(Boolean).length;
+
+      // Use larger page size when multiple filters are active
+      let dynamicLimit = DEFAULT_PAGE_SIZE;
+      if (activeFilterCount >= 3) {
+        dynamicLimit = MULTI_FILTER_PAGE_SIZE; // 150 items for 3+ filters
+      } else if (activeFilterCount >= 1) {
+        dynamicLimit = DURATION_FILTER_PAGE_SIZE; // 100 items for 1-2 filters
+      }
+
+      console.log(`[useTrends] Active filters: ${activeFilterCount}, Fetch limit: ${dynamicLimit}`);
       const response: ApiResponse = await fetchTrends({ 
         ...currentFilters, 
         page: currentPage, 
-        limit: ((currentFilters as any).limit ?? 50) 
+        limit: ((currentFilters as any).limit ?? dynamicLimit) 
       } as any);
       
       if (response.success) {
         setVideos(prev => currentPage === 1 ? response.data : [...prev, ...response.data]);
+        console.log(`[useTrends] Setting hasMore to: ${response.meta.hasMore} (page: ${currentPage}, videos returned: ${response.data.length})`);
         setHasMore(response.meta.hasMore);
       } else {
         throw new Error('API request was not successful.');

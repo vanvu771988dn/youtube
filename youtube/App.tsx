@@ -102,10 +102,9 @@ const App: React.FC = () => {
               hasMore={hasMore}
               loadMore={loadMore}
               refresh={refresh}
-              mode={'video'}
+              mode={appliedFilters.mode}
               onSimilarChannel={(name) => {
-                // Removed channel mode. Fallback: search by the channel name in video mode
-                onFilterChange('sortBy', 'views');
+                // Search by channel name
                 onFilterChange('keywords', name);
                 applyFilters();
               }}

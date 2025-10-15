@@ -7,10 +7,10 @@ import {
   MAX_SUBSCRIBERS, 
   MAX_VIDEO_COUNT,
   CHANNEL_AGE_OPTIONS,
-  initialFilterState, 
-  filterPresets,
   COUNTRY_OPTIONS,
-} from '../hooks/useFilters';
+  YOUTUBE_CATEGORIES,
+} from '../lib/constants';
+import { initialFilterState, filterPresets } from '../hooks/useFilters';
 import { formatCount } from '../utils/formatters';
 import { dequal } from 'dequal';
 
@@ -300,6 +300,118 @@ const VideoFiltersComponent: React.FC<{
   </>
 );
 
+// Channel Mode Filters
+const ChannelFiltersComponent: React.FC<{
+  filters: ChannelFilters;
+  onFilterChange: <K extends keyof ChannelFilters>(key: K, value: ChannelFilters[K]) => void;
+  commonSelectClasses: string;
+}> = ({ filters, onFilterChange, commonSelectClasses }) => (
+  <>
+    <div className="md:col-span-2">
+      <RangeSlider 
+        label="Subscriber Count" 
+        min={0} 
+        max={MAX_SUBSCRIBERS} 
+        step={10000} 
+        current={filters.subscriberCount} 
+        onChange={(val) => onFilterChange('subscriberCount', val)} 
+      />
+    </div>
+
+    <div className="md:col-span-2">
+      <RangeSlider 
+        label="Number of Videos" 
+        min={0} 
+        max={MAX_VIDEO_COUNT} 
+        step={10} 
+        current={filters.videoCount} 
+        onChange={(val) => onFilterChange('videoCount', val)} 
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium mb-1">Channel Age</label>
+      <select 
+        value={filters.channelAge} 
+        onChange={(e) => onFilterChange('channelAge', e.target.value as any)}
+        className={commonSelectClasses}
+      >
+        {CHANNEL_AGE_OPTIONS.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium mb-1">Monetization</label>
+      <select 
+        value={filters.monetizationEnabled} 
+        onChange={(e) => onFilterChange('monetizationEnabled', e.target.value as any)}
+        className={commonSelectClasses}
+      >
+        <option value="all">All Channels</option>
+        <option value="yes">Monetized Only</option>
+        <option value="no">Non-Monetized Only</option>
+      </select>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium mb-1">Monetization Age</label>
+      <select 
+        value={filters.monetizationAge} 
+        onChange={(e) => onFilterChange('monetizationAge', e.target.value as any)}
+        className={commonSelectClasses}
+      >
+        {CHANNEL_AGE_OPTIONS.map(opt => (
+          <option key={opt.value} value={opt.value}>
+            {opt.value === 'all' ? 'Any' : `${opt.label} monetized`}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium mb-1">Avg. Video Length</label>
+      <div className="mt-4">
+        <RangeSlider 
+          label="" 
+          min={0} 
+          max={7200} 
+          step={60} 
+          current={filters.avgVideoLength} 
+          onChange={(val) => onFilterChange('avgVideoLength', val)} 
+        />
+      </div>
+    </div>
+
+    {/* Channel Created Date Range */}
+    <div className="md:col-span-2">
+      <label className="block text-sm font-medium mb-1">Channel Created</label>
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <input 
+          type="date" 
+          placeholder="From"
+          value={(filters as any).createdDate?.start || ''} 
+          onChange={(e) => {
+            const current = (filters as any).createdDate || { start: null, end: null };
+            onFilterChange('createdDate' as any, { ...current, start: e.target.value || null });
+          }}
+          className={commonSelectClasses} 
+        />
+        <input 
+          type="date" 
+          placeholder="To"
+          value={(filters as any).createdDate?.end || ''} 
+          onChange={(e) => {
+            const current = (filters as any).createdDate || { start: null, end: null };
+            onFilterChange('createdDate' as any, { ...current, end: e.target.value || null });
+          }}
+          className={commonSelectClasses} 
+        />
+      </div>
+    </div>
+  </>
+);
 
 // Main Filter Controls
 const FilterControls: React.FC<{ 
@@ -384,7 +496,7 @@ const FilterControls: React.FC<{
         </select>
       </div>
 
-      {/* YouTube Category (only when YouTube or All) */}
+      {/* YouTube Category */}
       <div>
         <label className="block text-sm font-medium mb-1">YouTube Category</label>
         <select
@@ -392,36 +504,54 @@ const FilterControls: React.FC<{
           onChange={(e) => onFilterChange('category', e.target.value as any)}
           className={commonSelectClasses}
         >
-          <option value="0">All Categories</option>
-          <option value="1">Film & Animation</option>
-          <option value="2">Autos & Vehicles</option>
-          <option value="10">Music</option>
-          <option value="15">Pets & Animals</option>
-          <option value="17">Sports</option>
-          <option value="20">Gaming</option>
-          <option value="22">People & Blogs</option>
-          <option value="23">Comedy</option>
-          <option value="24">Entertainment</option>
-          <option value="25">News & Politics</option>
-          <option value="26">Howto & Style</option>
-          <option value="27">Education</option>
-          <option value="28">Science & Technology</option>
+          {YOUTUBE_CATEGORIES.map(cat => (
+            <option key={cat.id} value={cat.id}>{cat.label}</option>
+          ))}
         </select>
       </div>
 
-      {/* Mode-specific Filters */}
-      <div className="lg:col-span-4 col-span-2">
-        <div className="border-t border-slate-700 pt-4 mt-2">
-          <h3 className="text-sm font-semibold text-cyan-400 mb-4">
-            {filters.mode === 'video' ? '🎬 Video Filters' : '👤 Channel Filters'}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-<VideoFiltersComponent
-                filters={filters.videoFilters}
-                onFilterChange={onVideoFilterChange}
-                commonSelectClasses={commonSelectClasses}
-              />
-          </div>
+      {/* Mode Toggle Tabs */}
+      <div className="lg:col-span-4 col-span-2 border-t border-slate-700 pt-4 mt-2">
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => onFilterChange('mode', 'video')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filters.mode === 'video'
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+          >
+            🎬 Video Filters
+          </button>
+          <button
+            type="button"
+            onClick={() => onFilterChange('mode', 'channel')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filters.mode === 'channel'
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+          >
+            👤 Channel Filters
+          </button>
+        </div>
+
+        {/* Filter Content */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {filters.mode === 'video' ? (
+            <VideoFiltersComponent
+              filters={filters.videoFilters}
+              onFilterChange={onVideoFilterChange}
+              commonSelectClasses={commonSelectClasses}
+            />
+          ) : (
+            <ChannelFiltersComponent
+              filters={filters.channelFilters}
+              onFilterChange={onChannelFilterChange}
+              commonSelectClasses={commonSelectClasses}
+            />
+          )}
         </div>
       </div>
     </div>

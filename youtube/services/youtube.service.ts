@@ -144,6 +144,12 @@ class YouTubeService {
         tags: video.snippet.tags || [],
         category: video.snippet.categoryId,
         commentCount: parseInt(video.statistics.commentCount || '0', 10),
+        channelId: video.snippet.channelId,
+        channelCreatedAt: channel?.snippet.publishedAt,
+        channelDescription: channel?.snippet.description,
+        channelThumbnail: channel?.snippet.thumbnails.high?.url || channel?.snippet.thumbnails.medium?.url || channel?.snippet.thumbnails.default?.url,
+        channelViewCount: channel?.statistics.viewCount ? parseInt(channel.statistics.viewCount, 10) : undefined,
+        videoCount: channel?.statistics.videoCount ? parseInt(channel.statistics.videoCount, 10) : undefined,
       };
     });
   }
@@ -213,7 +219,10 @@ class YouTubeService {
 
       const data: YouTubeVideosResponse = await response.json();
       
+      console.log(`[YouTube Service] getTrendingVideos: Requested ${maxResults}, Got ${data.items?.length || 0}, NextToken: ${data.nextPageToken ? 'yes' : 'no'}`);
+      
       if (!data.items || data.items.length === 0) {
+        console.warn('[YouTube Service] No trending videos returned from API');
         return { videos: [], nextPageToken: undefined };
       }
 
@@ -297,7 +306,10 @@ class YouTubeService {
 
       const searchData: YouTubeSearchResponse = await searchResponse.json();
       
+      console.log(`[YouTube Service] searchVideos: Query="${query}", Requested ${maxResults}, Got ${searchData.items?.length || 0}, NextToken: ${searchData.nextPageToken ? 'yes' : 'no'}`);
+      
       if (!searchData.items || searchData.items.length === 0) {
+        console.warn(`[YouTube Service] No search results for query: "${query}"`);
         return { videos: [], nextPageToken: undefined };
       }
 
@@ -310,10 +322,12 @@ class YouTubeService {
       }
 
       const videos = await this.getVideosInfo(videoIds);
+      
+      console.log(`[YouTube Service] searchVideos: Enriched ${videos.length} videos with full details`);
 
       return { videos, nextPageToken: searchData.nextPageToken };
     } catch (error) {
-      console.error('Error searching videos:', error);
+      console.error('[YouTube Service] Error searching videos:', error);
       throw new Error(`Failed to search videos: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

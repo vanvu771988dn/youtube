@@ -1,39 +1,18 @@
 import { useState, useCallback } from 'react';
 import { FilterState } from '../lib/types';
 import { dequal } from 'dequal';
+import {
+  MAX_VIEWS,
+  MAX_SUBSCRIBERS,
+  MAX_VIDEO_COUNT,
+  MAX_AVG_VIDEO_LENGTH,
+  CHANNEL_AGE_OPTIONS,
+  DURATION_OPTIONS,
+  COUNTRY_OPTIONS,
+} from '../lib/constants';
 
-export const MAX_VIEWS = 20_000_000;
-export const MAX_SUBSCRIBERS = 10_000_000;
-export const MAX_VIDEO_COUNT = 1_000_000;
-
-export const CHANNEL_AGE_OPTIONS = [
-  { label: 'All', value: 'all' as const },
-  { label: '6+ months', value: '6m' as const },
-  { label: '1+ years', value: '1y' as const },
-  { label: '2+ years', value: '2y' as const },
-  { label: '5+ years', value: '5y' as const },
-  { label: '10+ years', value: '10y' as const },
-];
-
-export const DURATION_OPTIONS = [
-  { label: '< 1 min', value: 60 },
-  { label: '1-5 min', value: 300 },
-  { label: '5-20 min', value: 1200 },
-  { label: '> 20 min', value: Infinity },
-];
-
-export const COUNTRY_OPTIONS = [
-  { code: 'US', label: 'United States' },
-  { code: 'GB', label: 'United Kingdom' },
-  { code: 'CA', label: 'Canada' },
-  { code: 'AU', label: 'Australia' },
-  { code: 'IN', label: 'India' },
-  { code: 'JP', label: 'Japan' },
-  { code: 'KR', label: 'Korea' },
-  { code: 'VN', label: 'Vietnam' },
-  { code: 'DE', label: 'Germany' },
-  { code: 'FR', label: 'France' },
-];
+// Re-export for backward compatibility
+export { MAX_VIEWS, MAX_SUBSCRIBERS, MAX_VIDEO_COUNT, CHANNEL_AGE_OPTIONS, DURATION_OPTIONS, COUNTRY_OPTIONS };
 
 export const initialFilterState: FilterState = {
   // Common
@@ -62,7 +41,7 @@ export const initialFilterState: FilterState = {
     channelAge: 'all',
     monetizationEnabled: 'all',
     monetizationAge: 'all',
-    avgVideoLength: { min: 0, max: 7200 },
+    avgVideoLength: { min: 0, max: MAX_AVG_VIDEO_LENGTH },
     createdDate: { start: null, end: null },
   },
 };
