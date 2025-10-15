@@ -19,6 +19,7 @@ export const initialFilterState: FilterState = {
   mode: 'video',
   platform: 'all',
   keywords: '',
+  keywordMatch: 'OR', // Default to OR logic (match any keyword)
   sortBy: 'trending',
   country: 'ALL',
   language: 'ALL',

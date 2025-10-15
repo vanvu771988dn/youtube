@@ -108,9 +108,14 @@ export const fetchYouTubePage = async (
       const order = getYouTubeSortOrder(filters.sortBy);
       const channelOrder = order === 'date' ? 'date' : order === 'viewCount' ? 'viewCount' : 'relevance';
       const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
-      const combinedQuery = terms.length > 1 ? terms.join(' ') : filters.keywords;
       
-      console.log(`[Aggregator] Channel mode (with keywords): searching channels with query "${combinedQuery}"`);
+      // Apply OR/AND logic for channel search
+      const isAndLogic = filters.keywordMatch === 'AND';
+      const combinedQuery = terms.length > 1 
+        ? (isAndLogic ? terms.join(' ') : terms.join(' OR '))
+        : filters.keywords;
+      
+      console.log(`[Aggregator] Channel mode (${filters.keywordMatch}): searching channels with query "${combinedQuery}"`);
       
       const { channels, nextPageToken: token } = await youtubeService.searchChannels(
         combinedQuery,
@@ -145,9 +150,10 @@ export const fetchYouTubePage = async (
       const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
 
       if (terms.length > 1) {
-        // Use combined search only (simpler and supports pagination)
-        const combinedQuery = terms.join(' ');
-        console.log(`[Aggregator] Multi-keyword search: "${combinedQuery}"`);
+        // Multi-keyword search: use OR or AND logic based on filter
+        const isAndLogic = filters.keywordMatch === 'AND';
+        const combinedQuery = isAndLogic ? terms.join(' ') : terms.join(' OR ');
+        console.log(`[Aggregator] Multi-keyword ${filters.keywordMatch} search: "${combinedQuery}"`);
         
         const { videos, nextPageToken: token } = await youtubeService.searchVideos(
           combinedQuery,
@@ -160,7 +166,7 @@ export const fetchYouTubePage = async (
         
         pageVideos = videos;
         pageNextToken = token;
-        console.log(`[Aggregator] Multi-keyword results: ${videos.length} videos, nextToken: ${token ? 'yes' : 'no'}`);
+        console.log(`[Aggregator] Multi-keyword ${filters.keywordMatch} results: ${videos.length} videos, nextToken: ${token ? 'yes' : 'no'}`);
       } else {
         // Single keyword search
         const { videos, nextPageToken: token } = await youtubeService.searchVideos(

@@ -28,6 +28,12 @@ export interface Video {
   videoCount?: number;
   avgVideoLength?: number; // computed average length of videos for a channel (seconds)
   lastUpdatedAt?: string; // latest upload date among grouped videos
+  // Viral analytics (computed client-side)
+  viralityScore?: number;
+  growthRate?: number;
+  engagementRate?: number;
+  trendingBadge?: 'viral' | 'trending-fast' | 'rising' | 'steady' | null;
+  viralityTier?: 'mega' | 'high' | 'medium' | 'low';
 }
 
 export interface Range {
@@ -75,6 +81,7 @@ export interface FilterState {
   mode: FilterMode; // NEW: video or channel mode
   platform: PlatformType;
   keywords: string;
+  keywordMatch: 'OR' | 'AND'; // Keyword matching logic for multiple keywords
   sortBy: 'trending' | 'views' | 'date' | 'subscribers'; // Added subscribers
   country: string; // ISO 3166-1 alpha-2 region code for YouTube or 'ALL'
   language: string; // BCP-47 (e.g., 'en') or 'ALL'

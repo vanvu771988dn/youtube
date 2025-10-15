@@ -425,12 +425,41 @@ const FilterControls: React.FC<{
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
       {/* Common Filters */}
-      <div className="lg:col-span-4">
+      <div className="lg:col-span-3">
         <label className="block text-sm font-medium mb-1">Search</label>
         <SearchBar 
           keywords={filters.keywords} 
           onKeywordsChange={(value) => onFilterChange('keywords', value)} 
         />
+        <div className="text-xs text-slate-400 mt-1">Separate multiple keywords with semicolons (;) or commas (,)</div>
+      </div>
+      
+      <div className="pt-4 self-end">
+        <label className="block text-sm font-medium mb-2">Keyword Match</label>
+        <div className="flex gap-3">
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="radio"
+              name="keywordMatch"
+              value="OR"
+              checked={filters.keywordMatch === 'OR'}
+              onChange={() => onFilterChange('keywordMatch', 'OR')}
+              className="mr-2"
+            />
+            <span className="text-sm">OR (Any)</span>
+          </label>
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="radio"
+              name="keywordMatch"
+              value="AND"
+              checked={filters.keywordMatch === 'AND'}
+              onChange={() => onFilterChange('keywordMatch', 'AND')}
+              className="mr-2"
+            />
+            <span className="text-sm">AND (All)</span>
+          </label>
+        </div>
       </div>
 
       <div>

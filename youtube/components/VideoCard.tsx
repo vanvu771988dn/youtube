@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Video } from '../lib/types';
 import { formatCount, formatDuration, timeAgo } from '../utils/formatters';
 import { getCategoryName, getCategoryIcon, getCategoryColor } from '../utils/categoryUtils';
+import { calculateViralMetrics } from '../utils/viralityAnalytics';
+import ViralBadge from './ViralBadge';
+import TrendVelocity from './TrendVelocity';
 import YouTubeIcon from './icons/YouTubeIcon';
 import DailymotionIcon from './icons/DailymotionIcon';
 import RedditIcon from './icons/RedditIcon';
@@ -84,6 +87,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode, onSimilarChannel }) 
   const PlatformIcon = getPlatformIcon(video.platform);
   const [isImageLoaded, setImageLoaded] = useState(false);
   const isChannelModeCard = mode === 'channel';
+  
+  // Calculate viral metrics
+  const viralMetrics = useMemo(() => calculateViralMetrics(video), [video]);
 
   if (isChannelModeCard) {
     const channelUrl = video.channelId ? `https://www.youtube.com/channel/${video.channelId}` : '#';
@@ -211,6 +217,12 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode, onSimilarChannel }) 
         <div className="absolute top-2 left-2 bg-black bg-opacity-75 p-1.5 rounded-full">
             <PlatformIcon className="h-5 w-5 text-white" />
         </div>
+        {/* Viral Badge */}
+        {viralMetrics.trendingBadge && (
+          <div className="absolute top-2 left-14">
+            <ViralBadge metrics={viralMetrics} size="sm" />
+          </div>
+        )}
         {/* Bookmark button */}
         <BookmarkButtonOverlay video={video} />
       </a>
@@ -247,6 +259,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode, onSimilarChannel }) 
                 +{video.tags.length - 3} more
               </span>
             )}
+          </div>
+        )}
+
+        {/* Viral Metrics */}
+        {viralMetrics.trendingBadge && (
+          <div className="mb-3 p-3 bg-slate-900/50 rounded border border-slate-700">
+            <TrendVelocity metrics={viralMetrics} compact={true} />
           </div>
         )}
 
