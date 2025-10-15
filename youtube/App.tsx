@@ -1,7 +1,8 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState, useMemo } from 'react';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
 import ActiveFiltersBadge from './components/ActiveFiltersBadge';
+import FrontendSortBar, { FrontendSortOption } from './components/FrontendSortBar';
 import { useFilters } from './hooks/useFilters';
 import { useTrends } from './hooks/useTrends';
 import ErrorBoundary from './components/errors/ErrorBoundary';
@@ -21,9 +22,29 @@ const App: React.FC = () => {
     applyFilters 
   } = useFilters();
   
-  const [showFilters, setShowFilters] = React.useState(true);
+  const [showFilters, setShowFilters] = useState(true);
+  const [frontendSort, setFrontendSort] = useState<FrontendSortOption>('none');
   
   const { videos, loading, error, hasMore, loadMore, refresh } = useTrends(appliedFilters);
+
+  // Apply frontend sorting to videos
+  const sortedVideos = useMemo(() => {
+    if (frontendSort === 'none') return videos;
+    
+    const sorted = [...videos];
+    switch (frontendSort) {
+      case 'views':
+        sorted.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+        break;
+      case 'date':
+        sorted.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+        break;
+      case 'duration':
+        sorted.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+        break;
+    }
+    return sorted;
+  }, [videos, frontendSort]);
 
   // Handle removing individual filters
   const handleRemoveFilter = (filterPath: string) => {
@@ -89,6 +110,12 @@ const App: React.FC = () => {
           }}
         />
         
+        {/* Frontend Sort Bar */}
+        <FrontendSortBar 
+          currentSort={frontendSort}
+          onSortChange={setFrontendSort}
+        />
+        
         <ErrorBoundary>
           <Suspense fallback={
             <div className="py-16">
@@ -96,7 +123,7 @@ const App: React.FC = () => {
             </div>
           }>
             <VideoGrid 
-              videos={videos}
+              videos={sortedVideos}
               loading={loading}
               error={error}
               hasMore={hasMore}
