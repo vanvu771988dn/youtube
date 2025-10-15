@@ -56,6 +56,8 @@ const App: React.FC = () => {
       onFilterChange('platform', 'all');
     } else if (filterPath === 'sortBy') {
       onFilterChange('sortBy', 'trending');
+    } else if (filterPath === 'excludeGaming') {
+      onFilterChange('excludeGaming', false);
     } else if (filterPath.startsWith('videoFilters.')) {
       const key = filterPath.split('.')[1] as keyof typeof appliedFilters.videoFilters;
       if (key === 'uploadDate') onVideoFilterChange('uploadDate', 'all');

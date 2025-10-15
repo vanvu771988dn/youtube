@@ -24,6 +24,7 @@ export const initialFilterState: FilterState = {
   country: 'ALL',
   language: 'ALL',
   category: '0',
+  excludeGaming: false,
   videoFilters: {
     uploadDate: 'all',
     customDate: { start: null, end: null },

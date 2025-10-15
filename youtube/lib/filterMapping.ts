@@ -12,6 +12,7 @@ export const buildYouTubeQueryKey = (filters: ApiFilterParams): string => {
     region: filters.country && filters.country !== 'ALL' ? filters.country : null,
     language: filters.language && filters.language !== 'ALL' ? filters.language : null,
     category: (filters as any).category || null,
+    excludeGaming: filters.excludeGaming || false,
   };
   return JSON.stringify(keyObj);
 };

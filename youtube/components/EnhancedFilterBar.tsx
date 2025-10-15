@@ -328,13 +328,19 @@ const FilterControls: React.FC<{
         </select>
       </div>
 
-      <div className="pt-4 self-end">
+      <div className="pt-4 self-end space-y-3">
         <ToggleSwitch 
           checked={filters.trending24h} 
           onChange={val => onFilterChange('trending24h', val)}
           label="Trending in last 24h"
           disabled={!capabilities.supportsTrending24h}
           error={getFieldError('trending24h')}
+        />
+        <ToggleSwitch 
+          checked={filters.excludeGaming} 
+          onChange={val => onFilterChange('excludeGaming', val)}
+          label="Exclude Gaming"
+          error={getFieldError('excludeGaming')}
         />
       </div>
       

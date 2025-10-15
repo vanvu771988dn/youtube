@@ -199,6 +199,13 @@ export const fetchYouTubePage = async (
       filteredVideos = filteredVideos.filter(v => v.platform === 'youtube');
     }
 
+    // Exclude Gaming category if filter is enabled (category ID: 20)
+    if (filters.excludeGaming) {
+      const beforeGamingFilter = filteredVideos.length;
+      filteredVideos = filteredVideos.filter(v => v.category !== '20');
+      console.log(`[Aggregator] Gaming exclusion filter: ${beforeGamingFilter} -> ${filteredVideos.length}`);
+    }
+
     // Apply view count filter (only if meaningfully changed from defaults)
     const vc = filters.videoFilters.viewCount;
     const hasViewFilter = vc.min > 0 || vc.max < MAX_VIEWS;

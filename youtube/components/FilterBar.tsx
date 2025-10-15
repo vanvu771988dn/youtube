@@ -510,6 +510,15 @@ const FilterControls: React.FC<{
         </select>
       </div>
 
+      {/* Exclude Gaming Checkbox */}
+      <div className="pt-4 self-end">
+        <ToggleSwitch
+          checked={filters.excludeGaming}
+          onChange={(val) => onFilterChange('excludeGaming', val)}
+          label="Exclude Gaming"
+        />
+      </div>
+
       {/* Mode Toggle Tabs */}
       <div className="lg:col-span-4 col-span-2 border-t border-slate-700 pt-4 mt-2">
         <div className="flex gap-2 mb-4">

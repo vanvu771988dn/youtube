@@ -24,6 +24,7 @@ export const initialFilterState: FilterState = {
   language: 'ALL',
   // Category for YouTube (0 means all)
   category: '0',
+  excludeGaming: false,
 
   // Video-specific
   videoFilters: {

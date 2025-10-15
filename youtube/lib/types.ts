@@ -79,6 +79,7 @@ export interface FilterState {
   country: string; // ISO 3166-1 alpha-2 region code for YouTube or 'ALL'
   language: string; // BCP-47 (e.g., 'en') or 'ALL'
   category?: string; // YouTube category ID as string ("0" means all)
+  excludeGaming: boolean; // Exclude Gaming category (ID: 20) from results
   
   // Mode-specific filters
   videoFilters: VideoFilters;
