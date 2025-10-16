@@ -9,6 +9,7 @@ import {
   CHANNEL_AGE_OPTIONS,
   COUNTRY_OPTIONS,
   YOUTUBE_CATEGORIES,
+  FILTER_STEP,
 } from '../lib/constants';
 import { initialFilterState, filterPresets } from '../hooks/useFilters';
 import { formatCount } from '../utils/formatters';
@@ -267,7 +268,7 @@ const VideoFiltersComponent: React.FC<{
         label="View Count" 
         min={0} 
         max={MAX_VIEWS} 
-        step={100000} 
+        step={FILTER_STEP} 
         current={filters.viewCount} 
         onChange={(val) => onFilterChange('viewCount', val)} 
       />
@@ -312,7 +313,7 @@ const ChannelFiltersComponent: React.FC<{
         label="Subscriber Count" 
         min={0} 
         max={MAX_SUBSCRIBERS} 
-        step={10000} 
+        step={FILTER_STEP} 
         current={filters.subscriberCount} 
         onChange={(val) => onFilterChange('subscriberCount', val)} 
       />

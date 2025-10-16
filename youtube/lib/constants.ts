@@ -19,7 +19,7 @@ export const MAX_VIDEO_COUNT = 1_000_000;
 /** Maximum value for average video length filter (2 hours in seconds) */
 export const MAX_AVG_VIDEO_LENGTH = 7_200;
 
-/** Default step size for range sliders */
+/** Default step size for range sliders - 1k units for counts */
 export const FILTER_STEP = 1_000;
 
 // ============================================================================

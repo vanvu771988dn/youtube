@@ -120,8 +120,8 @@ Sort: Trending
 
 ## 📞 Need Help?
 
-- 📖 Full guide: See **youtube/FilterModeGuide.md**
-- 🛠️ Technical: See **ImplementationSummary.md**
+- 📖 Full guide: See **youtube/docs/FILTERS.md**
+- 🛠️ Technical: See **.warp/rules/RULES.md**
 - 💬 Support: Open GitHub issue
 
 ---

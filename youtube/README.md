@@ -74,3 +74,8 @@ The backend provides API endpoints (e.g., Reddit trending) for the frontend to c
 - **Responsive Design**: Works on desktop and mobile devices
 - **Caching**: Intelligent caching for better performance
 - **Fallback Support**: Falls back to mock data if YouTube API is unavailable
+
+## Documentation
+
+- Filtering (unified): `youtube/docs/FILTERS.md`
+- Keywords analysis: `youtube/KEYWORDS_ANALYSIS_README.md`
