@@ -6,6 +6,7 @@ import FrontendSortBar, { FrontendSortOption } from './components/FrontendSortBa
 import ViralInsights from './components/ViralInsights';
 import ApiDiagnostics from './components/ApiDiagnostics';
 import KeywordsAnalysis from './components/KeywordsAnalysis';
+import CreatorDashboardPage from './components/CreatorDashboardPage';
 import { useFilters } from './hooks/useFilters';
 import { useTrends } from './hooks/useTrends';
 import ErrorBoundary from './components/errors/ErrorBoundary';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const [showInsights, setShowInsights] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showKeywordsAnalysis, setShowKeywordsAnalysis] = useState(false);
+  const [showCreatorDashboard, setShowCreatorDashboard] = useState(false);
   const [frontendSort, setFrontendSort] = useState<FrontendSortOption>('none');
   
   const { videos, loading, error, hasMore, loadMore, refresh } = useTrends(appliedFilters);
@@ -88,12 +90,34 @@ const App: React.FC = () => {
     return <KeywordsAnalysis onBack={() => setShowKeywordsAnalysis(false)} />;
   }
 
+  // Show Creator Dashboard screen if enabled
+  if (showCreatorDashboard) {
+    return (
+      <CreatorDashboardPage 
+        videos={sortedVideos}
+        onKeywordSearch={(keyword) => {
+          onFilterChange('keywords', keyword);
+          applyFilters();
+          setShowCreatorDashboard(false);
+        }}
+        onBack={() => setShowCreatorDashboard(false)}
+      />
+    );
+  }
+
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans">
       <Header />
       <main className="container mx-auto px-4 py-6">
         {/* Toggle Buttons */}
         <div className="mb-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCreatorDashboard(true)}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white text-sm font-semibold px-3 py-2 rounded transition"
+          >
+            🎯 Creator Dashboard
+          </button>
           <button
             type="button"
             onClick={() => setShowKeywordsAnalysis(true)}
