@@ -14,6 +14,7 @@ import {
 import { initialFilterState, filterPresets } from '../hooks/useFilters';
 import { formatCount } from '../utils/formatters';
 import { dequal } from 'dequal';
+import { getCountryFlag, getCountryName } from '../utils/countryUtils';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -498,9 +499,11 @@ const FilterControls: React.FC<{
           onChange={(e) => onFilterChange('country', e.target.value as any)}
           className={commonSelectClasses}
         >
-          <option value="ALL">All</option>
+          <option value="ALL">🌍 All Countries</option>
           {COUNTRY_OPTIONS.map(opt => (
-            <option key={opt.code} value={opt.code}>{opt.label}</option>
+            <option key={opt.code} value={opt.code}>
+              {getCountryFlag(opt.code)} {opt.label}
+            </option>
           ))}
         </select>
       </div>

@@ -63,13 +63,13 @@ export const DURATION_FILTER_PAGE_SIZE = 100;
 export const MULTI_FILTER_PAGE_SIZE = 150;
 
 /** Maximum number of API pages to fetch when filtering */
-export const DEFAULT_SAFETY_PAGES = 10;
+export const DEFAULT_SAFETY_PAGES = 15;
 
 /** Maximum number of API pages to fetch when restrictive filters are active */
-export const RESTRICTIVE_FILTER_SAFETY_PAGES = 30;
+export const RESTRICTIVE_FILTER_SAFETY_PAGES = 40;
 
 /** Maximum number of API pages to fetch when multiple restrictive filters are active */
-export const MULTI_FILTER_SAFETY_PAGES = 50;
+export const MULTI_FILTER_SAFETY_PAGES = 75;
 
 // ============================================================================
 // API CONFIGURATION

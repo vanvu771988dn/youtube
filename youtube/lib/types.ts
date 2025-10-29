@@ -17,6 +17,7 @@ export interface Video {
   category?: string;
   commentCount?: number;
   language?: string; // default language/audio language
+  country?: string; // ISO 3166-1 alpha-2 country code
   // Channel-specific fields
   channelId?: string;
   channelCreatedAt?: string;

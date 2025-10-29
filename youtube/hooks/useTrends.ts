@@ -89,11 +89,19 @@ export const useTrends = (filters: FilterState): UseTrendsReturn => {
         currentFilters.channelFilters?.subscriberCount?.min > 0,
         currentFilters.channelFilters?.subscriberCount?.max < MAX_SUBSCRIBERS,
         currentFilters.videoFilters?.uploadDate !== 'all',
+        currentFilters.channelFilters?.channelAge !== 'all',
+        currentFilters.channelFilters?.videoCount?.min > 0,
+        currentFilters.channelFilters?.videoCount?.max < 1000000,
+        (currentFilters.keywords || '').trim().length > 0,
+        currentFilters.excludeGaming,
       ].filter(Boolean).length;
 
       // Use larger page size when multiple filters are active
+      // Special handling for channel mode with restrictive filters
       let dynamicLimit = DEFAULT_PAGE_SIZE;
-      if (activeFilterCount >= 3) {
+      if (currentFilters.mode === 'channel' && activeFilterCount >= 2) {
+        dynamicLimit = MULTI_FILTER_PAGE_SIZE; // Channel mode needs more for filtering
+      } else if (activeFilterCount >= 3) {
         dynamicLimit = MULTI_FILTER_PAGE_SIZE; // 150 items for 3+ filters
       } else if (activeFilterCount >= 1) {
         dynamicLimit = DURATION_FILTER_PAGE_SIZE; // 100 items for 1-2 filters

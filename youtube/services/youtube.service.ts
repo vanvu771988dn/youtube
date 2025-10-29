@@ -42,6 +42,7 @@ interface YouTubeChannel {
       high: { url: string };
     };
     publishedAt: string; // ✅ FIXED: Moved publishedAt to correct location
+    country?: string; // Country code where the channel is based
   };
   statistics: {
     subscriberCount: string;
@@ -144,7 +145,7 @@ class YouTubeService {
   /**
    * A normalized response that includes pagination token
    */
-  private mapVideosResponse(items: YouTubeVideo[], channels: YouTubeChannel[]): Video[] {
+  private mapVideosResponse(items: YouTubeVideo[], channels: YouTubeChannel[], regionCode?: string): Video[] {
     const channelMap = new Map(channels.map(channel => [channel.id, channel]));
     return items.map(video => {
       const channel = channelMap.get(video.snippet.channelId);
@@ -177,6 +178,7 @@ class YouTubeService {
         channelThumbnail: channel?.snippet.thumbnails.high?.url || channel?.snippet.thumbnails.medium?.url || channel?.snippet.thumbnails.default?.url,
         channelViewCount: channel?.statistics.viewCount ? parseInt(channel.statistics.viewCount, 10) : undefined,
         videoCount: channel?.statistics.videoCount ? parseInt(channel.statistics.videoCount, 10) : undefined,
+        country: channel?.snippet.country || regionCode || undefined,
       };
     });
   }
@@ -256,7 +258,7 @@ class YouTubeService {
       const channelIds = [...new Set(data.items.map(video => video.snippet.channelId))];
       const channels = await this.getChannelsInfo(channelIds);
 
-      const videos: Video[] = this.mapVideosResponse(data.items, channels).map(v => {
+      const videos: Video[] = this.mapVideosResponse(data.items, channels, regionCode).map(v => {
         const ch = channels.find(c => c.id === v.channelId || c.snippet.title === v.creatorName);
         return {
           ...v,
@@ -266,6 +268,7 @@ class YouTubeService {
           channelThumbnail: ch?.snippet.thumbnails.high?.url || ch?.snippet.thumbnails.medium?.url || ch?.snippet.thumbnails.default?.url || v.channelThumbnail,
           channelViewCount: ch?.statistics.viewCount ? parseInt(ch.statistics.viewCount, 10) : v.channelViewCount,
           videoCount: ch?.statistics.videoCount ? parseInt(ch.statistics.videoCount, 10) : v.videoCount,
+          country: ch?.snippet.country || v.country || regionCode,
         };
       });
 
@@ -427,6 +430,7 @@ class YouTubeService {
           channelViewCount: channel?.statistics.viewCount ? parseInt(channel.statistics.viewCount, 10) : undefined,
           videoCount: channel?.statistics.videoCount ? parseInt(channel.statistics.videoCount, 10) : undefined,
           language,
+          country: channel?.snippet.country || undefined,
         };
       });
 
@@ -554,6 +558,7 @@ class YouTubeService {
           channelThumbnail: channel.snippet.thumbnails.high?.url || channel.snippet.thumbnails.medium?.url || channel.snippet.thumbnails.default?.url,
           channelViewCount: channel.statistics.viewCount ? parseInt(channel.statistics.viewCount, 10) : 0,
           videoCount: channel.statistics.videoCount ? parseInt(channel.statistics.videoCount, 10) : 0,
+          country: channel.snippet.country || undefined,
         };
       });
       

@@ -39,6 +39,21 @@ export const fetchYouTubePage = async (
   
   console.log(`[Aggregator] Starting pool size: ${pool.length}`);
 
+  // Define variables needed for filter calculations first
+  const isChannelMode = filters.mode === 'channel';
+  const hasKeywords = filters.keywords && filters.keywords.trim();
+  const useDirectChannelSearch = isChannelMode && hasKeywords;
+  
+  // Check if we have restrictive channel filters that will eliminate many results
+  const hasRestrictiveChannelFilters = 
+    (filters.channelFilters as any).createdDate?.start || 
+    (filters.channelFilters as any).createdDate?.end ||
+    filters.channelFilters.videoCount.min > 0 ||
+    filters.channelFilters.videoCount.max < MAX_VIDEO_COUNT;
+  
+  // Check if subscriber filter is restrictive
+  const hasSubFilter = filters.channelFilters.subscriberCount.min > 0 || filters.channelFilters.subscriberCount.max < MAX_SUBSCRIBERS;
+
   // Count active restrictive filters to determine fetch strategy
   const activeFilterCount = [
     filters.videoFilters.duration && filters.videoFilters.duration.length > 0,
@@ -46,6 +61,9 @@ export const fetchYouTubePage = async (
     filters.channelFilters.subscriberCount.min > 0 || filters.channelFilters.subscriberCount.max < MAX_SUBSCRIBERS,
     filters.videoFilters.uploadDate !== 'all',
     filters.channelFilters.channelAge !== 'all',
+    filters.channelFilters.videoCount.min > 0 || filters.channelFilters.videoCount.max < MAX_VIDEO_COUNT,
+    hasRestrictiveChannelFilters, // Channel creation date filters
+    isChannelMode && hasKeywords && hasSubFilter, // Channel mode with both keywords and subscriber filters
   ].filter(Boolean).length;
 
   // Increase safety pages based on number of active filters
@@ -59,27 +77,27 @@ export const fetchYouTubePage = async (
   console.log(`[Aggregator] Active filters: ${activeFilterCount}, Safety pages: ${safetyPages}`);
   console.log(`[Aggregator] Mode: ${filters.mode}`);
   
-  // For channel mode:
-  // - WITH keywords: fetch channels directly (need higher multiplier for filtering)
-  // - WITHOUT keywords: fetch videos and group (need much higher multiplier)
-  const isChannelMode = filters.mode === 'channel';
-  const hasKeywords = filters.keywords && filters.keywords.trim();
-  const useDirectChannelSearch = isChannelMode && hasKeywords;
-  
-  // Check if we have restrictive channel filters that will eliminate many results
-  const hasRestrictiveChannelFilters = 
-    (filters.channelFilters as any).createdDate?.start || 
-    (filters.channelFilters as any).createdDate?.end ||
-    filters.channelFilters.videoCount.min > 0 ||
-    filters.channelFilters.videoCount.max < MAX_VIDEO_COUNT;
-  
   // Higher multipliers for channel mode, even higher when filtering
   let channelMultiplier = 1;
   if (isChannelMode) {
     if (useDirectChannelSearch) {
-      channelMultiplier = hasRestrictiveChannelFilters ? 10 : 3; // Fetch 10x when filtering channels
+      // Direct channel search: increase multiplier based on filter restrictiveness
+      if (hasRestrictiveChannelFilters && hasSubFilter) {
+        channelMultiplier = 15; // Very restrictive: both channel filters and subscriber filters
+      } else if (hasRestrictiveChannelFilters || hasSubFilter) {
+        channelMultiplier = 8; // Moderately restrictive
+      } else {
+        channelMultiplier = 4; // Basic channel search
+      }
     } else {
-      channelMultiplier = hasRestrictiveChannelFilters ? 15 : 8; // Need 15x videos to get enough filtered channels
+      // Video-based channel aggregation: need even higher multipliers
+      if (hasRestrictiveChannelFilters && hasSubFilter) {
+        channelMultiplier = 25; // Very restrictive: need lots of videos to find matching channels
+      } else if (hasRestrictiveChannelFilters || hasSubFilter) {
+        channelMultiplier = 15; // Moderately restrictive
+      } else {
+        channelMultiplier = 10; // Basic channel mode
+      }
     }
   }
   
@@ -234,6 +252,13 @@ export const fetchYouTubePage = async (
       filteredVideos = filteredVideos.filter(v => (v.language || '').toLowerCase().startsWith(filters.language.toLowerCase()));
     }
 
+    // Apply country filter (client-side)
+    if (filters.country && filters.country !== 'ALL') {
+      const beforeCountryFilter = filteredVideos.length;
+      filteredVideos = filteredVideos.filter(v => v.country === filters.country);
+      console.log(`[Aggregator] Country filter: ${beforeCountryFilter} -> ${filteredVideos.length} (${filters.country})`);
+    }
+
     const maxYears = mapChannelAgeToYears(filters.channelFilters.channelAge);
     if (maxYears !== null) {
       filteredVideos = filteredVideos.filter(v => typeof v.channelAge === 'number' && v.channelAge <= maxYears);
@@ -261,19 +286,25 @@ export const fetchYouTubePage = async (
     console.log(`[Aggregator] De-duplication: ${beforeDedup} -> ${addedCount} new ${isChannelMode ? 'channels' : 'videos'} added to pool (pool size: ${pool.length})`);
 
     // Check if we need to fetch more pages
-    const shouldContinue = pool.length < effectiveLimit;
+    // For heavily filtered results, continue even if we have some results but not a full page
+    const currentFilterEfficiency = totalFetchedFromAPI > 0 ? (pool.length / totalFetchedFromAPI) : 1;
+    const isLowEfficiency = currentFilterEfficiency < 0.5 && totalFetchedFromAPI >= 50;
+    const shouldContinue = (pool.length < effectiveLimit) || 
+                          (isLowEfficiency && pool.length < filters.limit && pageNextToken);
     
-    if (shouldContinue && pageNextToken) {
+    if (shouldContinue && pageNextToken && safetyPages > 0) {
       nextToken = pageNextToken;
-      console.log(`[Aggregator] ➡ Continue fetching: pool=${pool.length}/${effectiveLimit}, nextToken=${pageNextToken ? 'exists' : 'none'}, pages remaining: ${safetyPages}`);
+      console.log(`[Aggregator] ➡ Continue fetching: pool=${pool.length}/${effectiveLimit}, efficiency=${Math.round(currentFilterEfficiency * 100)}%, nextToken=${pageNextToken ? 'exists' : 'none'}, pages remaining: ${safetyPages}`);
     } else {
       // CRITICAL: Save the nextPageToken even if we're stopping
       state.nextPageToken = pageNextToken;
       console.log(`[Aggregator] ⏸ STOPPING fetch loop:`);
       console.log(`[Aggregator]    - Pool size: ${pool.length}/${effectiveLimit}`);
+      console.log(`[Aggregator]    - Filter efficiency: ${Math.round(currentFilterEfficiency * 100)}%`);
       console.log(`[Aggregator]    - pageNextToken: ${pageNextToken ? '✓ EXISTS' : '✗ NONE'}`);
       console.log(`[Aggregator]    - Saved to state.nextPageToken: ${state.nextPageToken ? '✓ YES' : '✗ NO'}`);
       console.log(`[Aggregator]    - Pages remaining: ${safetyPages}`);
+      console.log(`[Aggregator]    - Stop reason: ${!shouldContinue ? 'enough results' : !pageNextToken ? 'no more pages' : 'safety limit'}`);
       break;
     }
   }
@@ -409,20 +440,28 @@ export const fetchYouTubePage = async (
   // 2. YouTube API provided a nextPageToken
   // 3. We hit our safety page limit (likely more available)
   // 4. We returned a FULL page of results (assume more available)
+  // 5. Filter efficiency is low (lots filtered out, likely more available)
   const updatedState = ytPaginationState.get(key)!;
   const returnedFullPage = pageData.length >= filters.limit;
-  const hitSafetyLimit = safetyPages === 0 && pool.length >= filters.limit;
+  const hitSafetyLimit = safetyPages === 0;
   
+  // Calculate filter efficiency to detect heavy filtering
+  const filterEfficiency = totalFetchedFromAPI > 0 ? (pool.length / totalFetchedFromAPI) : 1;
+  const isHeavilyFiltered = filterEfficiency < 0.3 && totalFetchedFromAPI >= 50; // Less than 30% pass rate
+  
+  // More lenient hasMore calculation for filtered results
   const hasMore = remainingBuffer.length > 0 || 
                   !!updatedState.nextPageToken || 
                   hitSafetyLimit ||
-                  (returnedFullPage && totalFetchedFromAPI > 0);
+                  (returnedFullPage && totalFetchedFromAPI > 0) ||
+                  (isHeavilyFiltered && apiCallCount < 10); // Allow more attempts when heavily filtered
   
   console.log(`[Aggregator] === hasMore Calculation ===`);
   console.log(`[Aggregator] 1. remainingBuffer: ${remainingBuffer.length} ${remainingBuffer.length > 0 ? '✓' : '✗'}`);
   console.log(`[Aggregator] 2. nextPageToken: ${updatedState.nextPageToken ? 'YES ✓' : 'NO ✗'}`);
-  console.log(`[Aggregator] 3. hitSafetyLimit: ${hitSafetyLimit ? 'YES ✓' : 'NO ✗'} (safetyPages=${safetyPages}, pool=${pool.length}, limit=${filters.limit})`);
+  console.log(`[Aggregator] 3. hitSafetyLimit: ${hitSafetyLimit ? 'YES ✓' : 'NO ✗'} (safetyPages=${safetyPages})`);
   console.log(`[Aggregator] 4. returnedFullPage: ${returnedFullPage ? 'YES ✓' : 'NO ✗'} (returned=${pageData.length}, limit=${filters.limit}, fetched=${totalFetchedFromAPI})`);
+  console.log(`[Aggregator] 5. isHeavilyFiltered: ${isHeavilyFiltered ? 'YES ✓' : 'NO ✗'} (efficiency=${Math.round(filterEfficiency * 100)}%, apiCalls=${apiCallCount})`);
   console.log(`[Aggregator] >>> FINAL hasMore: ${hasMore ? 'TRUE ✓✓✓' : 'FALSE'}`);
   console.log(`[Aggregator] >>> Saved state for next call: nextPageToken=${updatedState.nextPageToken ? 'exists' : 'none'}, buffer=${updatedState.buffer.length}`);
   console.log(`[Aggregator] ========== ENDING fetchYouTubePage ==========`);

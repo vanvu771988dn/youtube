@@ -11,6 +11,7 @@ import RedditIcon from './icons/RedditIcon';
 import BookmarkIcon from './icons/BookmarkIcon';
 import { isBookmarked, toggleBookmark } from '../lib/bookmarks';
 import { isChannelTracked, toggleTrackChannel } from '../lib/trackedChannels';
+import { getCountryFlag, getCountryName } from '../utils/countryUtils';
 
 interface VideoCardProps {
   video: Video;
@@ -178,6 +179,15 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode, onSimilarChannel }) 
                 <div className="text-xs text-slate-400 mb-1">⏱️ Avg Length</div>
                 <div className="text-sm font-bold text-white">{video.avgVideoLength ? formatDuration(video.avgVideoLength) : '—'}</div>
               </div>
+              {video.country && (
+                <div className="bg-slate-900/50 p-2 rounded col-span-2">
+                  <div className="text-xs text-slate-400 mb-1">🌍 Country</div>
+                  <div className="text-sm font-bold text-white flex items-center gap-1">
+                    <span>{getCountryFlag(video.country)}</span>
+                    <span>{getCountryName(video.country)}</span>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Last Updated */}
@@ -294,10 +304,16 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, mode, onSimilarChannel }) 
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
               <span>{formatCount(video.likeCount)} likes</span>
             </div>
-            <div className="flex items-center gap-1.5 col-span-2">
+            <div className="flex items-center gap-1.5">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" /></svg>
                 <span>{timeAgo(video.uploadDate)}</span>
             </div>
+            {video.country && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-base leading-none">{getCountryFlag(video.country)}</span>
+                <span>{getCountryName(video.country)}</span>
+              </div>
+            )}
         </div>
       </div>
     </div>
