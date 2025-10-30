@@ -193,6 +193,8 @@ const FilterControls: React.FC<{
           keywords={filters.keywords} 
           onKeywordsChange={(value) => onFilterChange('keywords', value)}
           error={getFieldError('keywords')}
+          showTranslationHint={true}
+          selectedCountry={filters.country}
         />
         {getFieldError('keywords') && (
           <p className="text-red-400 text-xs">{getFieldError('keywords')}</p>

@@ -432,6 +432,8 @@ const FilterControls: React.FC<{
         <SearchBar 
           keywords={filters.keywords} 
           onKeywordsChange={(value) => onFilterChange('keywords', value)} 
+          showTranslationHint={true}
+          selectedCountry={filters.country}
         />
         <div className="text-xs text-slate-400 mt-1">Separate multiple keywords with semicolons (;) or commas (,)</div>
       </div>

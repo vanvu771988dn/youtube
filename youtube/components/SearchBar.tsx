@@ -1,6 +1,42 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { parseKeywords, formatKeywords, removeKeyword, validateKeywords, ParsedKeyword } from '../utils/keywordUtils';
+import { getCountryLanguage } from '../services/translation.service';
 import KeywordTag from './KeywordTag';
+
+// Language code to language name mapping for UI display
+const LANGUAGE_NAMES: Record<string, string> = {
+  'en': 'English',
+  'ja': 'Japanese',
+  'ko': 'Korean',
+  'zh': 'Chinese',
+  'fr': 'French',
+  'es': 'Spanish',
+  'de': 'German',
+  'it': 'Italian',
+  'ru': 'Russian',
+  'pt': 'Portuguese',
+  'nl': 'Dutch',
+  'sv': 'Swedish',
+  'no': 'Norwegian',
+  'da': 'Danish',
+  'fi': 'Finnish',
+  'pl': 'Polish',
+  'cs': 'Czech',
+  'sk': 'Slovak',
+  'hu': 'Hungarian',
+  'tr': 'Turkish',
+  'el': 'Greek',
+  'hi': 'Hindi',
+  'ur': 'Urdu',
+  'bn': 'Bengali',
+  'th': 'Thai',
+  'vi': 'Vietnamese',
+  'id': 'Indonesian',
+  'ms': 'Malay',
+  'tl': 'Filipino',
+  'ar': 'Arabic',
+  'he': 'Hebrew'
+};
 
 interface SearchBarProps {
   keywords: string;
@@ -8,9 +44,11 @@ interface SearchBarProps {
   error?: string;
   disabled?: boolean;
   showKeywordTags?: boolean;
+  showTranslationHint?: boolean;
+  selectedCountry?: string;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ keywords, onKeywordsChange, error, disabled = false, showKeywordTags = true }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ keywords, onKeywordsChange, error, disabled = false, showKeywordTags = true, showTranslationHint = false, selectedCountry }) => {
   const [parsedKeywords, setParsedKeywords] = useState<ParsedKeyword[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +132,24 @@ const SearchBar: React.FC<SearchBarProps> = ({ keywords, onKeywordsChange, error
           ))}
         </div>
       )}
+
+      {/* Translation Hint */}
+      {showTranslationHint && keywords && selectedCountry && selectedCountry !== 'ALL' && (() => {
+        const targetLanguage = getCountryLanguage(selectedCountry);
+        const targetLanguageName = LANGUAGE_NAMES[targetLanguage] || targetLanguage.toUpperCase();
+        
+        // Only show hint if target language is not English
+        if (targetLanguage === 'en') return null;
+        
+        return (
+          <div className="mt-2 flex items-center gap-2 text-xs text-cyan-400">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+            </svg>
+            <span>English keywords will be translated to {targetLanguageName} for better search results in {selectedCountry}</span>
+          </div>
+        );
+      })()}
 
       {/* Help Text */}
       {showHelp && (

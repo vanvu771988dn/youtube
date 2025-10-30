@@ -1,5 +1,6 @@
 import { ApiFilterParams, Video } from './types';
 import YouTubeService from '../services/youtube.service';
+import { translateKeywordsForCountry, getCountryLanguage } from '../services/translation.service';
 import { buildYouTubeQueryKey, getPublishedAfterDate, getYouTubeSortOrder, mapChannelAgeToYears } from './filterMapping';
 import config from './config';
 import { calculateVelocity } from '../utils/formatters';
@@ -125,13 +126,22 @@ export const fetchYouTubePage = async (
     if (useDirectChannelSearch) {
       const order = getYouTubeSortOrder(filters.sortBy);
       const channelOrder = order === 'date' ? 'date' : order === 'viewCount' ? 'viewCount' : 'relevance';
-      const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
+      
+      // Translate keywords to target country language if country filter is applied and not ALL
+      let processedKeywords = filters.keywords;
+      if (filters.country && filters.country !== 'ALL') {
+        const targetLanguage = getCountryLanguage(filters.country);
+        console.log(`[Aggregator] Country filter detected (${filters.country}), translating keywords to ${targetLanguage}...`);
+        processedKeywords = await translateKeywordsForCountry(filters.keywords, filters.country);
+      }
+      
+      const terms = processedKeywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
       
       // Apply OR/AND logic for channel search
       const isAndLogic = filters.keywordMatch === 'AND';
       const combinedQuery = terms.length > 1 
         ? (isAndLogic ? terms.join(' ') : terms.join(' OR '))
-        : filters.keywords;
+        : processedKeywords;
       
       console.log(`[Aggregator] Channel mode (${filters.keywordMatch}): searching channels with query "${combinedQuery}"`);
       
@@ -165,7 +175,16 @@ export const fetchYouTubePage = async (
       }
       
       const order = getYouTubeSortOrder(filters.sortBy);
-      const terms = filters.keywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
+      
+      // Translate keywords to target country language if country filter is applied and not ALL
+      let processedKeywords = filters.keywords;
+      if (filters.country && filters.country !== 'ALL') {
+        const targetLanguage = getCountryLanguage(filters.country);
+        console.log(`[Aggregator] Country filter detected (${filters.country}), translating keywords to ${targetLanguage}...`);
+        processedKeywords = await translateKeywordsForCountry(filters.keywords, filters.country);
+      }
+      
+      const terms = processedKeywords.split(/[;,|]+/).map(t => t.trim()).filter(Boolean);
 
       if (terms.length > 1) {
         // Multi-keyword search: use OR or AND logic based on filter
@@ -188,7 +207,7 @@ export const fetchYouTubePage = async (
       } else {
         // Single keyword search
         const { videos, nextPageToken: token } = await youtubeService.searchVideos(
-          filters.keywords,
+          processedKeywords,
           50,
           order,
           publishedAfter,
