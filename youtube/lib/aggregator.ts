@@ -308,18 +308,27 @@ export const fetchYouTubePage = async (
     // For heavily filtered results, continue even if we have some results but not a full page
     const currentFilterEfficiency = totalFetchedFromAPI > 0 ? (pool.length / totalFetchedFromAPI) : 1;
     const isLowEfficiency = currentFilterEfficiency < 0.5 && totalFetchedFromAPI >= 50;
+    const hasCountryFilterActive = filters.country && filters.country !== 'ALL';
+    // Be more conservative with country filtering as it can dramatically reduce results
+    const countryFilterThreshold = hasCountryFilterActive ? 0.1 : 0.5;
+    const isVeryLowEfficiency = currentFilterEfficiency < countryFilterThreshold && totalFetchedFromAPI >= 25;
     const shouldContinue = (pool.length < effectiveLimit) || 
-                          (isLowEfficiency && pool.length < filters.limit && pageNextToken);
+                          (isLowEfficiency && pool.length < filters.limit && pageNextToken) ||
+                          (hasCountryFilterActive && isVeryLowEfficiency && pool.length < filters.limit && pageNextToken);
     
     if (shouldContinue && pageNextToken && safetyPages > 0) {
       nextToken = pageNextToken;
       console.log(`[Aggregator] ➡ Continue fetching: pool=${pool.length}/${effectiveLimit}, efficiency=${Math.round(currentFilterEfficiency * 100)}%, nextToken=${pageNextToken ? 'exists' : 'none'}, pages remaining: ${safetyPages}`);
+      if (hasCountryFilterActive) {
+        console.log(`[Aggregator]    - Country filter active (${filters.country}), using lower efficiency threshold`);
+      }
     } else {
       // CRITICAL: Save the nextPageToken even if we're stopping
       state.nextPageToken = pageNextToken;
       console.log(`[Aggregator] ⏸ STOPPING fetch loop:`);
       console.log(`[Aggregator]    - Pool size: ${pool.length}/${effectiveLimit}`);
       console.log(`[Aggregator]    - Filter efficiency: ${Math.round(currentFilterEfficiency * 100)}%`);
+      console.log(`[Aggregator]    - Country filter active: ${hasCountryFilterActive ? 'YES' : 'NO'}`);
       console.log(`[Aggregator]    - pageNextToken: ${pageNextToken ? '✓ EXISTS' : '✗ NONE'}`);
       console.log(`[Aggregator]    - Saved to state.nextPageToken: ${state.nextPageToken ? '✓ YES' : '✗ NO'}`);
       console.log(`[Aggregator]    - Pages remaining: ${safetyPages}`);
@@ -468,12 +477,16 @@ export const fetchYouTubePage = async (
   const filterEfficiency = totalFetchedFromAPI > 0 ? (pool.length / totalFetchedFromAPI) : 1;
   const isHeavilyFiltered = filterEfficiency < 0.3 && totalFetchedFromAPI >= 50; // Less than 30% pass rate
   
+  // Check if country filtering is applied (major filter that can drastically reduce results)
+  const hasCountryFilter = filters.country && filters.country !== 'ALL';
+  
   // More lenient hasMore calculation for filtered results
   const hasMore = remainingBuffer.length > 0 || 
                   !!updatedState.nextPageToken || 
                   hitSafetyLimit ||
                   (returnedFullPage && totalFetchedFromAPI > 0) ||
-                  (isHeavilyFiltered && apiCallCount < 10); // Allow more attempts when heavily filtered
+                  (isHeavilyFiltered && apiCallCount < 10) || // Allow more attempts when heavily filtered
+                  (hasCountryFilter && updatedState.nextPageToken && pageData.length > 0); // Country filtering with available pages
   
   console.log(`[Aggregator] === hasMore Calculation ===`);
   console.log(`[Aggregator] 1. remainingBuffer: ${remainingBuffer.length} ${remainingBuffer.length > 0 ? '✓' : '✗'}`);
@@ -481,6 +494,7 @@ export const fetchYouTubePage = async (
   console.log(`[Aggregator] 3. hitSafetyLimit: ${hitSafetyLimit ? 'YES ✓' : 'NO ✗'} (safetyPages=${safetyPages})`);
   console.log(`[Aggregator] 4. returnedFullPage: ${returnedFullPage ? 'YES ✓' : 'NO ✗'} (returned=${pageData.length}, limit=${filters.limit}, fetched=${totalFetchedFromAPI})`);
   console.log(`[Aggregator] 5. isHeavilyFiltered: ${isHeavilyFiltered ? 'YES ✓' : 'NO ✗'} (efficiency=${Math.round(filterEfficiency * 100)}%, apiCalls=${apiCallCount})`);
+  console.log(`[Aggregator] 6. countryFiltering: ${hasCountryFilter && updatedState.nextPageToken && pageData.length > 0 ? 'YES ✓' : 'NO ✗'} (hasCountryFilter=${hasCountryFilter}, hasToken=${!!updatedState.nextPageToken}, hasResults=${pageData.length > 0})`);
   console.log(`[Aggregator] >>> FINAL hasMore: ${hasMore ? 'TRUE ✓✓✓' : 'FALSE'}`);
   console.log(`[Aggregator] >>> Saved state for next call: nextPageToken=${updatedState.nextPageToken ? 'exists' : 'none'}, buffer=${updatedState.buffer.length}`);
   console.log(`[Aggregator] ========== ENDING fetchYouTubePage ==========`);
