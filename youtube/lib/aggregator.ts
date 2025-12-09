@@ -480,13 +480,18 @@ export const fetchYouTubePage = async (
   // Check if country filtering is applied (major filter that can drastically reduce results)
   const hasCountryFilter = filters.country && filters.country !== 'ALL';
   
-  // More lenient hasMore calculation for filtered results
-  const hasMore = remainingBuffer.length > 0 || 
-                  !!updatedState.nextPageToken || 
-                  hitSafetyLimit ||
-                  (returnedFullPage && totalFetchedFromAPI > 0) ||
-                  (isHeavilyFiltered && apiCallCount < 10) || // Allow more attempts when heavily filtered
-                  (hasCountryFilter && updatedState.nextPageToken && pageData.length > 0); // Country filtering with available pages
+  // More lenient hasMore calculation for filtered results, with a hard-stop guard when truly exhausted
+  let hasMore = remainingBuffer.length > 0 || 
+                !!updatedState.nextPageToken || 
+                hitSafetyLimit ||
+                (returnedFullPage && totalFetchedFromAPI > 0) ||
+                (isHeavilyFiltered && apiCallCount < 10) || // Allow more attempts when heavily filtered
+                (hasCountryFilter && updatedState.nextPageToken && pageData.length > 0); // Country filtering with available pages
+
+  // Hard stop: if we returned nothing, have no buffer, and no next token, there is no more data
+  if (pageData.length === 0 && remainingBuffer.length === 0 && !updatedState.nextPageToken) {
+    hasMore = false;
+  }
   
   console.log(`[Aggregator] === hasMore Calculation ===`);
   console.log(`[Aggregator] 1. remainingBuffer: ${remainingBuffer.length} ${remainingBuffer.length > 0 ? '✓' : '✗'}`);

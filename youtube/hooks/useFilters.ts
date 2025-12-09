@@ -3,6 +3,8 @@ import { FilterState } from '../lib/types';
 import { dequal } from 'dequal';
 import {
   MAX_VIEWS,
+  MAX_LIKES,
+  MAX_COMMENTS,
   MAX_SUBSCRIBERS,
   MAX_VIDEO_COUNT,
   MAX_AVG_VIDEO_LENGTH,
@@ -12,7 +14,7 @@ import {
 } from '../lib/constants';
 
 // Re-export for backward compatibility
-export { MAX_VIEWS, MAX_SUBSCRIBERS, MAX_VIDEO_COUNT, CHANNEL_AGE_OPTIONS, DURATION_OPTIONS, COUNTRY_OPTIONS };
+export { MAX_VIEWS, MAX_LIKES, MAX_COMMENTS, MAX_SUBSCRIBERS, MAX_VIDEO_COUNT, CHANNEL_AGE_OPTIONS, DURATION_OPTIONS, COUNTRY_OPTIONS };
 
 export const initialFilterState: FilterState = {
   // Common
@@ -32,6 +34,8 @@ export const initialFilterState: FilterState = {
     uploadDate: 'all',
     customDate: { start: null, end: null },
     viewCount: { min: 0, max: MAX_VIEWS },
+    likeCount: { min: 0, max: MAX_LIKES },
+    commentCount: { min: 0, max: MAX_COMMENTS },
     duration: [],
     trending24h: false,
   },
@@ -56,6 +60,8 @@ export const filterPresets: Record<string, Partial<FilterState>> = {
       duration: [60],
       trending24h: true,
       viewCount: { min: 1_000_000, max: MAX_VIEWS },
+      likeCount: { min: 50_000, max: MAX_LIKES },
+      commentCount: { min: 0, max: MAX_COMMENTS },
       uploadDate: 'all',
       customDate: { start: null, end: null },
     },
@@ -66,6 +72,8 @@ export const filterPresets: Record<string, Partial<FilterState>> = {
     videoFilters: {
       duration: [1200],
       viewCount: { min: 0, max: MAX_VIEWS },
+      likeCount: { min: 0, max: MAX_LIKES },
+      commentCount: { min: 0, max: MAX_COMMENTS },
       uploadDate: 'all',
       customDate: { start: null, end: null },
       trending24h: false,

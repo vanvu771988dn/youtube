@@ -61,6 +61,8 @@ export interface VideoFilters {
   uploadDate: UploadDateOption;
   customDate: CustomDateRange;
   viewCount: Range;
+  likeCount: Range;
+  commentCount: Range;
   duration: number[]; // array of max seconds for each bracket
   trending24h: boolean;
 }

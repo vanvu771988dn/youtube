@@ -151,6 +151,33 @@ export function matchesDurationFilter(video: Video, durationFilter: number[]): b
 }
 
 /**
+ * Checks if a video matches like count filter
+ * @param video - Video object
+ * @param likeCountRange - Range object with min and max values
+ * @returns True if video matches the filter
+ */
+export function matchesLikeCountFilter(video: Video, likeCountRange: { min: number; max: number }): boolean {
+  if (!likeCountRange) return true;
+  
+  const { min, max } = likeCountRange;
+  return video.likeCount >= min && video.likeCount <= max;
+}
+
+/**
+ * Checks if a video matches comment count filter
+ * @param video - Video object
+ * @param commentCountRange - Range object with min and max values
+ * @returns True if video matches the filter
+ */
+export function matchesCommentCountFilter(video: Video, commentCountRange: { min: number; max: number }): boolean {
+  if (!commentCountRange) return true;
+  
+  const commentCount = video.commentCount || 0;
+  const { min, max } = commentCountRange;
+  return commentCount >= min && commentCount <= max;
+}
+
+/**
  * Checks if a video matches engagement criteria
  * @param video - Video object
  * @param tier - Engagement tier
@@ -253,6 +280,10 @@ export function countActiveFilters(filters: FilterState, defaults: FilterState):
   if (filters.videoFilters?.uploadDate !== defaults.videoFilters?.uploadDate) count++;
   if (filters.videoFilters?.viewCount.min !== defaults.videoFilters?.viewCount.min) count++;
   if (filters.videoFilters?.viewCount.max !== defaults.videoFilters?.viewCount.max) count++;
+  if (filters.videoFilters?.likeCount.min !== defaults.videoFilters?.likeCount.min) count++;
+  if (filters.videoFilters?.likeCount.max !== defaults.videoFilters?.likeCount.max) count++;
+  if (filters.videoFilters?.commentCount.min !== defaults.videoFilters?.commentCount.min) count++;
+  if (filters.videoFilters?.commentCount.max !== defaults.videoFilters?.commentCount.max) count++;
   if (filters.videoFilters?.duration.length > 0) count++;
   if (filters.videoFilters?.trending24h) count++;
   

@@ -10,6 +10,12 @@
 /** Maximum value for view count filter */
 export const MAX_VIEWS = 50_000_000;
 
+/** Maximum value for like count filter */
+export const MAX_LIKES = 5_000_000;
+
+/** Maximum value for comment count filter */
+export const MAX_COMMENTS = 500_000;
+
 /** Maximum value for subscriber count filter */
 export const MAX_SUBSCRIBERS = 50_000_000;
 

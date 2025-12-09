@@ -4,6 +4,8 @@ import SearchBar from './SearchBar';
 import { 
   DURATION_OPTIONS, 
   MAX_VIEWS, 
+  MAX_LIKES,
+  MAX_COMMENTS,
   MAX_SUBSCRIBERS, 
   MAX_VIDEO_COUNT,
   CHANNEL_AGE_OPTIONS,
@@ -272,6 +274,28 @@ const VideoFiltersComponent: React.FC<{
         step={FILTER_STEP} 
         current={filters.viewCount} 
         onChange={(val) => onFilterChange('viewCount', val)} 
+      />
+    </div>
+
+    <div className="md:col-span-2">
+      <RangeSlider 
+        label="Like Count" 
+        min={0} 
+        max={MAX_LIKES} 
+        step={1000} 
+        current={filters.likeCount} 
+        onChange={(val) => onFilterChange('likeCount', val)} 
+      />
+    </div>
+
+    <div className="md:col-span-2">
+      <RangeSlider 
+        label="Comment Count" 
+        min={0} 
+        max={MAX_COMMENTS} 
+        step={100} 
+        current={filters.commentCount} 
+        onChange={(val) => onFilterChange('commentCount', val)} 
       />
     </div>
 

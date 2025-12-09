@@ -4,7 +4,9 @@ import { CHANNEL_AGE_TO_YEARS } from './constants';
 // Build a key for caching/pagination state based on inputs affecting YouTube upstream
 export const buildYouTubeQueryKey = (filters: ApiFilterParams): string => {
   const keyObj = {
+    mode: filters.mode,
     keywords: filters.keywords || '',
+    keywordMatch: filters.keywordMatch || 'OR',
     order: filters.sortBy,
     uploadDate: filters.videoFilters.uploadDate,
     customDateStart: filters.videoFilters.customDate.start || null,
@@ -13,6 +15,18 @@ export const buildYouTubeQueryKey = (filters: ApiFilterParams): string => {
     language: filters.language && filters.language !== 'ALL' ? filters.language : null,
     category: (filters as any).category || null,
     excludeGaming: filters.excludeGaming || false,
+    // Include channel filters that affect pagination
+    channelAge: filters.channelFilters.channelAge,
+    subscriberMin: filters.channelFilters.subscriberCount.min,
+    subscriberMax: filters.channelFilters.subscriberCount.max,
+    videoCountMin: filters.channelFilters.videoCount.min,
+    videoCountMax: filters.channelFilters.videoCount.max,
+    channelCreatedStart: (filters.channelFilters as any).createdDate?.start || null,
+    channelCreatedEnd: (filters.channelFilters as any).createdDate?.end || null,
+    // Include video filters that affect pagination
+    duration: filters.videoFilters.duration.join(','),
+    viewCountMin: filters.videoFilters.viewCount.min,
+    viewCountMax: filters.videoFilters.viewCount.max,
   };
   return JSON.stringify(keyObj);
 };
